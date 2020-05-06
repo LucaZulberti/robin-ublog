@@ -1,10 +1,11 @@
 /*
  * robin_api.h
  *
- * Header file containing common types, macro and functions definitions for
- * Robin API (public interface).
+ * Header file containing public types, macros and interface for
+ * Robin API.
  *
- * This file is included by the CLI client robin_client.c.
+ * This file is intended to be included by programs which use librobin_api.a
+ * library, like robin_client.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */

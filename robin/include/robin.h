@@ -1,8 +1,8 @@
 /*
  * robin.h
  *
- * Header file containing common types, macro and functions definitions for
- * Robin Server, Robin API (internals) and Robin CLI Client.
+ * Header file containing common includes and macros for Robin Server and
+ * Robin API (internals).
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */

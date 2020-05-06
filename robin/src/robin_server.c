@@ -3,12 +3,12 @@
  *
  * Server for Robin messaging application.
  *
- * It serves incoming connections assigning them an handling thread.
- * N threads are spawned at start-up with N a compile-time constant.
- * N is also the max number of simultaneous connections.
+ * It serves incoming connections assigning them an handling thread using
+ * the Robin Thread Pool.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>

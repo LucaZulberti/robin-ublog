@@ -1,7 +1,7 @@
 /*
  * robin_log.h
  *
- * Header file containing types, macro and functions definitions for
+ * Header file containing types, macros and public interface for
  * Robin log utility.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>

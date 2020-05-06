@@ -1,3 +1,11 @@
+/*
+ * robin_log.c
+ *
+ * Log utility for standard log messages across the application.
+ *
+ * Luca Zulberti <l.zulberti@studenti.unipi.it>
+ */
+
 #include <stdio.h>
 
 #include "robin_log.h"

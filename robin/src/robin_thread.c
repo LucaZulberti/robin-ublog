@@ -1,14 +1,14 @@
 /*
  * robin_thread.c
  *
- * Thread data and functions for handling Robin connections.
+ * The Robin Thread Pool handles the incoming connections.
  *
- * It serves incoming connections assigning them an handling thread.
- * N threads are spawned at start-up with N a compile-time constant.
+ * N threads are spawned at start-up with N as compile-time constant.
  * N is also the max number of simultaneous connections.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
