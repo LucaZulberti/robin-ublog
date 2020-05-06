@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 
 #include "robin_server.h"
 #include "robin.h"
@@ -35,10 +34,6 @@ void usage(void)
 static char *host;
 static int port;
 
-/*
- * Robin Threads
- */
-static robin_thread_t *robin_thread_pool;
 
 int main(int argc, char **argv)
 {
@@ -65,20 +60,20 @@ int main(int argc, char **argv)
     /* parse port */
     port = atoi(argv[2]);
 
-    robin_log_info("Starting Robin server... (host: %s, port: %d)",
-                   host, port);
-
-    /*
-     * Robin thread spawning
-     */
-    robin_thread_pool = malloc(ROBIN_SERVER_THREAD_NUMBER
-                               * sizeof(robin_thread_t));
-    if (!robin_thread_pool) {
-        robin_log_err("%s", strerror(errno));
+    /* Thread pool spawning */
+    if (robin_thread_pool_init()) {
+        robin_log_err("failed thread pool initialization!");
         exit(EXIT_FAILURE);
     }
 
-    /* todo */
+    /*
+     * Socket creation and listening
+     */
+
+    /* TODO */
+
+    robin_log_info("Starting Robin server... (host: %s, port: %d)",
+                   host, port);
 
     exit(EXIT_SUCCESS);
 }
