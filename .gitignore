@@ -1,0 +1,8 @@
+# Editor
+.vscode
+
+# Objects
+**/.obj
+
+# Output
+**/output
