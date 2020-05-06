@@ -44,7 +44,9 @@ int main(int argc, char **argv)
 {
     size_t host_len;
 
-    /* parse arguments */
+    /*
+     * Argument parsing
+     */
     if (argc != 3) {
         robin_log_err("invalid number of arguments.");
         usage();
@@ -66,7 +68,9 @@ int main(int argc, char **argv)
     robin_log_info("Starting Robin server... (host: %s, port: %d)",
                    host, port);
 
-    /* allocate memory for thread structures */
+    /*
+     * Robin thread spawning
+     */
     robin_thread_pool = malloc(ROBIN_SERVER_THREAD_NUMBER
                                * sizeof(robin_thread_t));
     if (!robin_thread_pool) {
