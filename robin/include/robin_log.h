@@ -28,17 +28,20 @@
 
 #if ROBIN_LOG_ENABLED == 1
 #   if ROBIN_LOG_LEVEL >= 0
-#       define robin_log_err(fmt, ...) _robin_log_print(ROBIN_LOG_ERR, (fmt), __VA_ARGS__)
+#       define robin_log_err(fmt, ...) \
+            _robin_log_print(ROBIN_LOG_ERR, (fmt) __VA_OPT__(,) __VA_ARGS__)
 #   else
 #       define robin_log_err(fmt, ...)
 #   endif
 #   if ROBIN_LOG_LEVEL >= 1
-#       define robin_log_warn(fmt, ...) _robin_log_print(ROBIN_LOG_WARN, (fmt), __VA_ARGS__)
+#       define robin_log_warn(fmt, ...) \
+            _robin_log_print(ROBIN_LOG_WARN, (fmt) __VA_OPT__(,) __VA_ARGS__)
 #   else
 #       define robin_log_warn(fmt, ...)
 #   endif
 #   if ROBIN_LOG_LEVEL >= 2
-#       define robin_log_info(fmt, ...) _robin_log_print(ROBIN_LOG_INFO, (fmt), __VA_ARGS__)
+#       define robin_log_info(fmt, ...) \
+            _robin_log_print(ROBIN_LOG_INFO, (fmt) __VA_OPT__(,) __VA_ARGS__)
 #   else
 #       define robin_log_info(fmt, ...)
 #   endif
