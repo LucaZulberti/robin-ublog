@@ -15,8 +15,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#include "robin_server.h"
 #include "robin.h"
+#include "robin_thread.h"
 
 /*
  * Robin Thread

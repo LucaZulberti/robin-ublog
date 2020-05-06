@@ -14,8 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "robin_server.h"
 #include "robin.h"
+#include "robin_thread.h"
 
 /*
  * Usage
