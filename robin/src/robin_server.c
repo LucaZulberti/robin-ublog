@@ -66,8 +66,8 @@ int main(int argc, char **argv)
     /* parse port */
     port = atoi(argv[2]);
 
-    robin_log_info("Robin server");
-    robin_log_info("------------");
+    robin_log_info("%s - Server", ROBIN_RELEASE_STRING);
+    robin_log_info("------------------------");
 
 
     /*
