@@ -1,7 +1,7 @@
 /*
  * robin_log.h
  *
- * Header file containing types, macro and functions definitions for
+ * Header file containing types, macros and public interface for
  * Robin log utility.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
@@ -53,6 +53,13 @@ typedef enum robin_log_level {
     ROBIN_LOG_INFO = 2
 } robin_log_level_t;
 
+/**
+ * @brief Actually the function that perform logging.
+ *
+ * @param log_lvl log level
+ * @param fmt     printf-style format argument
+ * @param ...     optional arguments for fmt expansion
+ */
 void _robin_log_print(robin_log_level_t log_lvl, const char *fmt, ...);
 
 #endif /* ROBIN_LOG_H */
