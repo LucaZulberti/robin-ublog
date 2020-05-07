@@ -139,6 +139,8 @@ int robin_thread_pool_init(void)
         return -1;
     }
 
+    robin_log_info("main: spawning %d Robin Threads...", ROBIN_THREAD_POOL_RT_NUM);
+
     for (int i = 0; i < ROBIN_THREAD_POOL_RT_NUM; i++) {
         /* initialize the Robin Thread data */
         robin_thread_init(&robin_thread_pool[i], i);
@@ -174,6 +176,7 @@ void robin_thread_pool_dispatch(int fd)
             pthread_mutex_unlock(&rt->data_mutex);
 
             /* wake up the chosen thread */
+            robin_log_info("main: thread %d selected", i);
             pthread_cond_signal(&rt->data_cond);
             break;
         } else {
