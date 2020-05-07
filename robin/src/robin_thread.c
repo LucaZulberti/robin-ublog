@@ -18,8 +18,9 @@
 #include "robin.h"
 #include "robin_thread.h"
 
+
 /*
- * Robin Thread
+ * Robin Thread Pool types and data
  */
 
 #define ROBIN_SERVER_THREAD_NUMBER 4
@@ -38,7 +39,12 @@ typedef struct robin_thread {
     pthread_t thread;  /* phtread fd */
     unsigned int id;   /* thread id */
 
-    /* Robin shared thread data */
+    /*
+     * Robin Thread data
+     *
+     * Synchronization is necessary for possible race-conditions with the
+     * dispatcher function that is searching for RT_FREE.
+     */
     robin_thread_data_t data;
     pthread_mutex_t data_mutex;
     pthread_cond_t data_cond;
@@ -46,6 +52,7 @@ typedef struct robin_thread {
 
 static robin_thread_t *robin_thread_pool;
 static sem_t robin_thread_free;
+
 
 /*
  * Local functions
@@ -63,7 +70,7 @@ static void *robin_thread_function(void *ctx)
 
     pthread_mutex_lock(&me->data_mutex);
 
-    /* Robin thread allocation loop */
+    /* Robin Thread allocation loop */
     while (1) switch (me->data.state) {
         case RT_FREE:
             robin_log_info("thread %d: ready", me->id);
@@ -72,11 +79,17 @@ static void *robin_thread_function(void *ctx)
 
         case RT_BUSY:
             pthread_mutex_unlock(&me->data_mutex);
+            robin_log_info("thread %d: serving fd=%d", me->id, me->data.fd);
 
             /* handle requests from client until disconnected */
             /* TODO */
 
-            /* re-initialize the Robin Thread data */
+            /*
+             * Re-initialize the Robin Thread data
+             *
+             * The lock here is necessary to avoid race-conditions with
+             * robin_thread_pool_dispatch() when it is searching for RT_FREE.
+             */
             pthread_mutex_lock(&me->data_mutex);
             robin_thread_data_init(&me->data);
             pthread_mutex_unlock(&me->data_mutex);
@@ -149,6 +162,7 @@ void robin_thread_pool_dispatch(int fd)
     /* wait for a free thread */
     sem_wait(&robin_thread_free);
 
+    /* dispatcher */
     for (int i = 0; i < ROBIN_SERVER_THREAD_NUMBER; i++) {
         rt = &robin_thread_pool[i];
 
