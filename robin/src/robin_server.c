@@ -60,6 +60,9 @@ int main(int argc, char **argv)
     /* parse port */
     port = atoi(argv[2]);
 
+    robin_log_info("Starting Robin server... (host: %s, port: %d)",
+                   host, port);
+
     /* Thread pool spawning */
     if (robin_thread_pool_init()) {
         robin_log_err("failed thread pool initialization!");
@@ -72,8 +75,6 @@ int main(int argc, char **argv)
 
     /* TODO */
 
-    robin_log_info("Starting Robin server... (host: %s, port: %d)",
-                   host, port);
 
     exit(EXIT_SUCCESS);
 }
