@@ -9,9 +9,20 @@
 #ifndef ROBIN_THREAD_H
 #define ROBIN_THREAD_H
 
-/*
- * Create and spawn all Robin threads
+/**
+ * @brief Create and spawn all Robin threads in pool.
+ *
+ * @return int 0 on success, -1 on failure.
  */
 int robin_thread_pool_init(void);
+
+/**
+ * @brief Dispatch a connection to a free Robin Thread in the pool.
+ *
+ * The function will block if there are no threads available.
+ *
+ * @param fd socket file descriptor of the accepted connection
+ */
+void robin_thread_pool_dispatch(int fd);
 
 #endif /* ROBIN_THREAD_H */

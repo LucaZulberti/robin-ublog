@@ -66,18 +66,22 @@ static void *robin_thread_function(void *ctx)
     /* Robin thread allocation loop */
     while (1) switch (me->data.state) {
         case RT_FREE:
+            robin_log_info("thread %d: ready", me->id);
             pthread_cond_wait(&me->data_cond, &me->data_mutex);
             break;
 
         case RT_BUSY:
             pthread_mutex_unlock(&me->data_mutex);
 
-            /* Handle requests from client until disconnected */
+            /* handle requests from client until disconnected */
             /* TODO */
 
+            /* re-initialize the Robin Thread data */
             pthread_mutex_lock(&me->data_mutex);
             robin_thread_data_init(&me->data);
             pthread_mutex_unlock(&me->data_mutex);
+
+            /* notify the dispatcher that a new thread is free */
             sem_post(&robin_thread_free);
             break;
     }
@@ -94,6 +98,7 @@ static void robin_thread_init(robin_thread_t *rt, int id)
     pthread_cond_init(&rt->data_cond, NULL);
 }
 
+
 /*
  * Exported functions
  */
@@ -102,10 +107,7 @@ int robin_thread_pool_init(void)
 {
     int ret;
 
-    /*
-     * Semaphore initialization
-     */
-
+    /* semaphore initialization: all Robin Threads are free */
     ret = sem_init(&robin_thread_free, 0, ROBIN_SERVER_THREAD_NUMBER);
     if (ret) {
         robin_log_err("%s", strerror(errno));
@@ -125,7 +127,10 @@ int robin_thread_pool_init(void)
     }
 
     for (int i = 0; i < ROBIN_SERVER_THREAD_NUMBER; i++) {
+        /* initialize the Robin Thread data */
         robin_thread_init(&robin_thread_pool[i], i);
+
+        /* spawn the thread */
         ret = pthread_create(&robin_thread_pool[i].thread, NULL,
                              robin_thread_function, &robin_thread_pool[i]);
         if (ret) {
@@ -137,7 +142,7 @@ int robin_thread_pool_init(void)
     return 0;
 }
 
-void robin_thread_allocate(int fd)
+void robin_thread_pool_dispatch(int fd)
 {
     robin_thread_t *rt;
 
@@ -152,9 +157,10 @@ void robin_thread_allocate(int fd)
             /* setup robin thread data */
             rt->data.state = RT_BUSY;
             rt->data.fd = fd;
-
             pthread_mutex_unlock(&rt->data_mutex);
-            pthread_cond_signal(&rt->data_cond); /* wake up thread */
+
+            /* wake up the chosen thread */
+            pthread_cond_signal(&rt->data_cond);
             break;
         } else {
             pthread_mutex_unlock(&rt->data_mutex);
