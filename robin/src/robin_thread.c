@@ -23,7 +23,7 @@
  * Robin Thread Pool types and data
  */
 
-#define ROBIN_SERVER_THREAD_NUMBER 4
+#define ROBIN_THREAD_POOL_RT_NUM 4
 
 typedef enum robin_thread_state {
     RT_FREE = 0,
@@ -121,7 +121,7 @@ int robin_thread_pool_init(void)
     int ret;
 
     /* semaphore initialization: all Robin Threads are free */
-    ret = sem_init(&robin_thread_free, 0, ROBIN_SERVER_THREAD_NUMBER);
+    ret = sem_init(&robin_thread_free, 0, ROBIN_THREAD_POOL_RT_NUM);
     if (ret) {
         robin_log_err("%s", strerror(errno));
         return -1;
@@ -132,14 +132,14 @@ int robin_thread_pool_init(void)
      * Thread spawning
      */
 
-    robin_thread_pool = malloc(ROBIN_SERVER_THREAD_NUMBER
+    robin_thread_pool = malloc(ROBIN_THREAD_POOL_RT_NUM
                                * sizeof(robin_thread_t));
     if (!robin_thread_pool) {
         robin_log_err("%s", strerror(errno));
         return -1;
     }
 
-    for (int i = 0; i < ROBIN_SERVER_THREAD_NUMBER; i++) {
+    for (int i = 0; i < ROBIN_THREAD_POOL_RT_NUM; i++) {
         /* initialize the Robin Thread data */
         robin_thread_init(&robin_thread_pool[i], i);
 
@@ -163,7 +163,7 @@ void robin_thread_pool_dispatch(int fd)
     sem_wait(&robin_thread_free);
 
     /* dispatcher */
-    for (int i = 0; i < ROBIN_SERVER_THREAD_NUMBER; i++) {
+    for (int i = 0; i < ROBIN_THREAD_POOL_RT_NUM; i++) {
         rt = &robin_thread_pool[i];
 
         pthread_mutex_lock(&rt->data_mutex);
