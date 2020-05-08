@@ -14,9 +14,9 @@
 #include <semaphore.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "robin.h"
+#include "robin_manager.h"
 #include "robin_thread.h"
 
 
@@ -115,10 +115,7 @@ static void *rt_loop(void *ctx)
         robin_log_info("RT #%d: serving fd=%d", me->id, me->data.fd);
 
         /* handle requests from client until disconnected */
-        /* Dummy reply */
-        if (write(me->data.fd, "bye!\n", 6) < 0)
-            robin_log_err("%s", strerror(errno));
-        close(me->data.fd);
+        robin_manage_connection(me->id, me->data.fd);
 
         /* re-initialize this RT's data */
         rt_data_init(&me->data);
