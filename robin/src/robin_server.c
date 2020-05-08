@@ -43,13 +43,17 @@ int main(int argc, char **argv)
     size_t host_len;
     int server_fd, newclient_fd;
     struct sockaddr_in serv_addr;
+    const int log_id = ROBIN_LOG_ID_MAIN;
     int ret;
+
+    printf("%s - Server\n", ROBIN_RELEASE_STRING);
+    printf("------------------------\n");
 
     /*
      * Argument parsing
      */
     if (argc != 3) {
-        robin_log_err("invalid number of arguments.");
+        robin_log_err(log_id, "invalid number of arguments.");
         usage();
         exit(EXIT_FAILURE);
     }
@@ -58,16 +62,13 @@ int main(int argc, char **argv)
     host_len = strlen(argv[1]);
     host = malloc((host_len + 1) * sizeof(char));
     if (!host) {
-        robin_log_err("%s", strerror(errno));
+        robin_log_err(log_id, "%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
     memcpy(host, argv[1], host_len);
 
     /* parse port */
     port = atoi(argv[2]);
-
-    printf("%s - Server\n", ROBIN_RELEASE_STRING);
-    printf("------------------------\n");
 
 
     /*
@@ -76,7 +77,7 @@ int main(int argc, char **argv)
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
-        robin_log_err("%s", strerror(errno));
+        robin_log_err(log_id, "%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -90,7 +91,7 @@ int main(int argc, char **argv)
     else
         ret = inet_pton(serv_addr.sin_family, host, &(serv_addr.sin_addr));
     if (!ret) {
-        robin_log_err("hostname %s is invalid", host);
+        robin_log_err(log_id, "hostname %s is invalid", host);
         exit(EXIT_FAILURE);
     }
 
@@ -99,17 +100,17 @@ int main(int argc, char **argv)
     ret = bind(server_fd, (struct sockaddr *) &serv_addr,
                sizeof(serv_addr));
     if (ret < 0) {
-        robin_log_err("%s", strerror(errno));
+        robin_log_err(log_id, "%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     ret = listen(server_fd, 1);
     if (ret < 0) {
-        robin_log_err("%s", strerror(errno));
+        robin_log_err(log_id, "%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
-    robin_log_info("server listening on: <%s:%d>",
+    robin_log_info(log_id, "server listening on: <%s:%d>",
                    host, port);
 
 
@@ -118,7 +119,7 @@ int main(int argc, char **argv)
      */
 
     if (robin_thread_pool_init()) {
-        robin_log_err("failed thread pool initialization!");
+        robin_log_err(log_id, "failed to initialize thread pool!");
         exit(EXIT_FAILURE);
     }
 
@@ -130,7 +131,7 @@ int main(int argc, char **argv)
     while (1) {
         newclient_fd = accept(server_fd, NULL, NULL);
         if (newclient_fd < 0) {
-            robin_log_err("%s", strerror(errno));
+            robin_log_err(log_id, "%s", strerror(errno));
             /* waiting for another client */
             break;
         }
