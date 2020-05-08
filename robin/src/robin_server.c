@@ -75,6 +75,9 @@ int main(int argc, char **argv)
      * Socket creation and listening
      */
 
+    robin_log_info(log_id, "requested host: %s", host);
+    robin_log_info(log_id, "requested port: %d", port);
+
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         robin_log_err(log_id, "%s", strerror(errno));
