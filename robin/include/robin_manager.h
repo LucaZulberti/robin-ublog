@@ -12,8 +12,9 @@
 /**
  * @brief Manage the connection with the client
  *
+ * @param id thread id for logging purposes
  * @param fd client socket
  */
-void robin_manage_connection(int id, int fd);
+void robin_manage_connection(int log_id, int fd);
 
 #endif /* ROBIN_MANAGER_H */
