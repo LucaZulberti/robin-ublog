@@ -40,6 +40,7 @@ typedef struct robin_thread {
     struct robin_thread *next; /* next available Robin Thread if not busy */
 } robin_thread_t;
 
+static const int log_id = ROBIN_LOG_ID_POOL;
 static robin_thread_t *rt_pool;
 static robin_thread_t *rt_free_list = NULL;
 static pthread_cond_t rt_free_list_cond = PTHREAD_COND_INITIALIZER;
@@ -63,7 +64,7 @@ static int rt_init(robin_thread_t *rt, int id)
 
     /* initially free */
     if (sem_init(&rt->busy, 0, 0)) {
-        robin_log_err("%s", strerror(errno));
+        robin_log_err(log_id, "%s", strerror(errno));
         return -1;
     }
     rt->next = NULL;
@@ -106,16 +107,17 @@ static robin_thread_t *rt_free_list_pop(void)
 static void *rt_loop(void *ctx)
 {
     robin_thread_t *me = (robin_thread_t *) ctx;
+    const int rt_log_id = ROBIN_LOG_ID_RT_BASE + me->id;
 
     /* Robin Thread loop */
     while (1) {
-        robin_log_info("RT #%d: ready", me->id);
+        robin_log_info(rt_log_id, "ready", me->id);
         sem_wait(&me->busy);
 
-        robin_log_info("RT #%d: serving fd=%d", me->id, me->data.fd);
+        robin_log_info(rt_log_id, "serving fd=%d", me->id, me->fd);
 
         /* handle requests from client until disconnected */
-        robin_manage_connection(me->id, me->data.fd);
+        robin_manage_connection(rt_log_id, me->fd);
 
         /* re-initialize this RT's data */
         rt_data_init(&me->data);
@@ -139,16 +141,18 @@ int robin_thread_pool_init(void)
     rt_pool = malloc(ROBIN_THREAD_POOL_RT_NUM
                                * sizeof(robin_thread_t));
     if (!rt_pool) {
-        robin_log_err("%s", strerror(errno));
+        robin_log_err(log_id, "%s", strerror(errno));
         return -1;
     }
 
-    robin_log_info("RT Pool: spawning %d Robin Threads...", ROBIN_THREAD_POOL_RT_NUM);
+    robin_log_info(log_id, "spawning %d Robin Threads...",
+                   ROBIN_THREAD_POOL_RT_NUM);
 
     for (int i = 0; i < ROBIN_THREAD_POOL_RT_NUM; i++) {
         /* initialize the Robin Thread data */
         if (rt_init(&rt_pool[i], i) < 0) {
-            robin_log_err("failed to initialize the Robin Thread #%d", i);
+            robin_log_err(log_id, "failed to initialize the Robin Thread #%d",
+                          i);
             exit(EXIT_FAILURE);
         }
 
@@ -158,7 +162,7 @@ int robin_thread_pool_init(void)
         /* spawn the thread */
         ret = pthread_create(&rt_pool[i].thread, NULL, rt_loop, &rt_pool[i]);
         if (ret) {
-            robin_log_err("%s", strerror(ret));
+            robin_log_err(log_id, "%s", strerror(ret));
             return -1;
         }
     }
@@ -172,7 +176,7 @@ void robin_thread_pool_dispatch(int fd)
 
     /* take a free Robin Thread (wait for an available RT) */
     rt = rt_free_list_pop();
-    robin_log_info("RT Pool: thread %d selected", rt->id);
+    robin_log_info(log_id, "thread %d selected", rt->id);
 
     /* setup data on the Robin Thread */
     rt->data.fd = fd;
