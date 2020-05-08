@@ -26,18 +26,15 @@
 
 #define ROBIN_THREAD_POOL_RT_NUM 4
 
-typedef struct robin_thread_data {
-    int fd;                     /* connection file descriptor */
-} robin_thread_data_t;
-
 typedef struct robin_thread {
     pthread_t thread;  /* phtread fd */
     unsigned int id;   /* thread id */
 
-    robin_thread_data_t data; /* data to handle the connection */
-
-    sem_t busy; /* Robin Thread will wait for things to do */
+    sem_t busy;                /* semaphore for non-active wait when free */
     struct robin_thread *next; /* next available Robin Thread if not busy */
+
+    /* Robin Thread data */
+    int fd;
 } robin_thread_t;
 
 static const int log_id = ROBIN_LOG_ID_POOL;
@@ -51,16 +48,9 @@ static pthread_mutex_t rt_free_list_mutex = PTHREAD_MUTEX_INITIALIZER;
  * Local functions
  */
 
-static void rt_data_init(robin_thread_data_t *data)
-{
-    data->fd = -1;
-}
-
 static int rt_init(robin_thread_t *rt, int id)
 {
     rt->id = id;
-
-    rt_data_init(&rt->data);
 
     /* initially free */
     if (sem_init(&rt->busy, 0, 0)) {
@@ -68,6 +58,8 @@ static int rt_init(robin_thread_t *rt, int id)
         return -1;
     }
     rt->next = NULL;
+
+    rt->fd = -1;
 
     return 0;
 }
@@ -120,7 +112,7 @@ static void *rt_loop(void *ctx)
         robin_manage_connection(rt_log_id, me->fd);
 
         /* re-initialize this RT's data */
-        rt_data_init(&me->data);
+        me->fd = -1;
 
         /* push this RT in the free list */
         rt_free_list_push(me);
@@ -139,7 +131,7 @@ int robin_thread_pool_init(void)
     int ret;
 
     rt_pool = malloc(ROBIN_THREAD_POOL_RT_NUM
-                               * sizeof(robin_thread_t));
+                     * sizeof(robin_thread_t));
     if (!rt_pool) {
         robin_log_err(log_id, "%s", strerror(errno));
         return -1;
@@ -179,7 +171,7 @@ void robin_thread_pool_dispatch(int fd)
     robin_log_info(log_id, "thread %d selected", rt->id);
 
     /* setup data on the Robin Thread */
-    rt->data.fd = fd;
+    rt->fd = fd;
 
     /* wake up the Robin Thread */
     sem_post(&rt->busy);
