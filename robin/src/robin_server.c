@@ -20,16 +20,35 @@
 #include "robin.h"
 #include "robin_thread.h"
 
+
+/*
+ * Print welcome string
+ */
+static void welcome(void)
+{
+    char msg[256];
+    int n;
+
+    n = snprintf(msg, 256, "Robin Server %s", ROBIN_RELEASE_STRING);
+    puts(msg);
+
+    while (n--)
+        putchar('-');
+    putchar('\n');
+}
+
+
 /*
  * Usage
  */
-void usage(void)
+static void usage(void)
 {
     puts("usage: robin_server <host> <port>");
     puts("\thost: hostname where the server is executed");
     puts("\tport: port on which the server will listen for incoming "
          "connections");
 }
+
 
 /*
  * TCP parameters
@@ -46,8 +65,7 @@ int main(int argc, char **argv)
     const int log_id = ROBIN_LOG_ID_MAIN;
     int ret;
 
-    printf("%s - Server\n", ROBIN_RELEASE_STRING);
-    printf("------------------------\n");
+    welcome();
 
     /*
      * Argument parsing
