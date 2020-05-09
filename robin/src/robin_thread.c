@@ -106,7 +106,7 @@ static void *rt_loop(void *ctx)
         robin_log_info(rt_log_id, "ready", me->id);
         sem_wait(&me->busy);
 
-        robin_log_info(rt_log_id, "serving fd=%d", me->id, me->fd);
+        robin_log_info(rt_log_id, "serving fd=%d", me->fd);
 
         /* handle requests from client until disconnected */
         robin_manage_connection(rt_log_id, me->fd);

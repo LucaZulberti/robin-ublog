@@ -12,8 +12,13 @@
 
 #include "robin_log.h"
 
-#define ROBIN_VERSION "0.3.1"
-#define ROBIN_RELEASE  "v" ROBIN_VERSION " beta"
-#define ROBIN_RELEASE_STRING "Robin " ROBIN_RELEASE
+#define ROBIN_VERSION_CORE          "0.3.2s"
+#define ROBIN_VERSION_CORE_STRING   "v" ROBIN_VERSION_CORE
+
+#define ROBIN_PRERELEASE            "dev"
+#define ROBIN_PRERELEASE_STRING     ROBIN_VERSION_CORE_STRING \
+                                    "-" ROBIN_PRERELEASE
+
+#define ROBIN_RELEASE_STRING        ROBIN_PRERELEASE_STRING
 
 #endif /* ROBIN_H */
