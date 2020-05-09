@@ -11,5 +11,4 @@ robin_api_SOURCES = robin_api.c
 robin_client_SOURCES = robin_client.c
 robin_client_LIBS    = robin_api
 
-include ../common.mk
-
+include ../make-common/common.mk
