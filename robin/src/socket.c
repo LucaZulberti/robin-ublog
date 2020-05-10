@@ -11,11 +11,18 @@
 #include "socket.h"
 #include "robin.h"
 
+#define SOCKET_ALLOCATION_CHUNK_LEN 64
 const int log_id = ROBIN_LOG_ID_SOCKET;
 
 /*
  * Local functions
  */
+
+static inline size_t get_allocation_size(int n)
+{
+    return sizeof(char) * SOCKET_ALLOCATION_CHUNK_LEN
+        * ((n / SOCKET_ALLOCATION_CHUNK_LEN) + 1);
+}
 
 static char *findchar(char *s, int c, size_t n)
 {
@@ -62,55 +69,53 @@ static char *findchar(char *s, int c, size_t n)
 static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
 {
     int nstr, nread;
-    char *ptr = vptr;
     char *end;
 
     if (!buf)
         return -EINVAL;
 
-    if (!*buf) {		/* must allocate buffer */
-        *buf = malloc(sysconf(_SC_PAGESIZE));
-        if (!*buf)
-            return -ENOMEM;
-        *len = 0;	/* buffer exists but within no buffered data */
-    }
-
     nread = 0;
-realloc:
-    if (n - nread <= 0)
-        return -ENOMEM;
-
-    /* Ok, we must read new data in order to hope getting a '\n' char.
-     * We append new read data into "*buf".
-     */
-    *buf = realloc(*buf, *len + n - nread);
     if (!*buf)
-        return -ENOMEM;
+        *len = 0;  /* buffer is not allocated */
 
-again:
-    nread = read(fd, *buf + *len, n);
-    if (nread < 0) {
-        if (errno == EAGAIN)
-            goto again;
+    while (1) {
+        *buf = realloc(*buf, get_allocation_size(
+                                *len + SOCKET_ALLOCATION_CHUNK_LEN));
+        if (!*buf) {
+            robin_log_err(log_id, "realloc: %s", strerror(errno));
+            return -1;
+        }
+
+        do {
+            nread = read(fd, *buf, SOCKET_ALLOCATION_CHUNK_LEN);
+        } while (nread < 0 && errno == EAGAIN);
+
+        if (nread < 0) {
+            robin_log_err(log_id, "failed to read another chunk from socket");
+            return -1;
+        } else if (nread == 0)  /* EOF! */
+            return 0;
+
+        /* Now let's try to find the '\n'! */
+        end = findchar(*buf + *len, '\n', nread);
+
+        *len += nread;
+
+        if (end)
+            break;
     }
-    if (nread == 0)		/* EOF! */
-        return 0;
-
-    /* Now let's try to find the '\n'! */
-    end = findchar(*buf + *len, '\n', nread);
-
-    *len += nread;
-    if (!end)
-        goto realloc;
 
     nstr = end - *buf + 1;
-    if (nstr + 1 > n)
-        return nstr + 1;	/* cannot store the string into vptr */
+    if (nstr + 1 > n) {
+        /* line is kept in buffer but not moved in destination */
+        robin_log_warn(log_id, "recvline: destination buffer too small");
+        return nstr + 1;  /* cannot store the string into vptr */
+    }
 
-    memcpy(vptr, *buf, nstr);	/* copy the '\n' too */
-    ptr[nstr + 1] = '\0';		/* add the null-terminate char */
+    memcpy(vptr, *buf, nstr);  /* copy the '\n' too */
+    vptr[nstr + 1] = '\0';     /* add the terminating null char */
 
-    memmove(*buf, *buf + nstr, *len - nstr); /* update buf data */
+    memmove(*buf, *buf + nstr, *len - nstr); /* update buf data with remaining read bytes */
     *len -= nstr;
 
     return nstr;
@@ -119,19 +124,20 @@ again:
 static int readn(int fd, void *vptr, size_t n)
 {
     int nleft = n, nread;
-    char *ptr = vptr;
 
     while (nleft > 0) {
-        nread = read(fd, ptr, nleft);
+        do {
+            nread = read(fd, vptr, nleft);
+        } while (nread < 0 && errno == EAGAIN);
+
         if (nread < 0) {
-            if (errno != EAGAIN)
-                return -1;
-            nread = 0;
+            robin_log_err(log_id, "read: %s", strerror(errno));
+            return -1;
         } else if (nread == 0)
             break;
 
         nleft -= nread;
-        ptr += nread;
+        vptr += nread;
     }
 
     return n - nleft;
@@ -140,23 +146,25 @@ static int readn(int fd, void *vptr, size_t n)
 static int writen(int fd, void *vptr, size_t n)
 {
     int nleft = n, nwritten;
-    char *ptr = vptr;
 
     while (nleft > 0) {
-        nwritten = write(fd, ptr, nleft);
+        do {
+            nwritten = write(fd, vptr, nleft);
+        } while (nwritten < 0 && errno == EAGAIN);
+
         if (nwritten < 0) {
-            if (errno != EAGAIN)
-                return -1;
-            nwritten = 0;
+            robin_log_err(log_id, "write: %s", strerror(errno));
+            return -1;
         } else if (nwritten == 0)
             break;
 
         nleft -= nwritten;
-        ptr += nwritten;
+        vptr += nwritten;
     }
 
     return n - nleft;
 }
+
 
 /*
  * Exported functions
