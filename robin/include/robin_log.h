@@ -28,20 +28,20 @@
 
 #if ROBIN_LOG_ENABLED == 1
 #   if ROBIN_LOG_LEVEL >= 0
-#       define robin_log_err(id, fmt, ...) \
-            _robin_log_print(ROBIN_LOG_ERR, (id), (fmt) __VA_OPT__(,) __VA_ARGS__)
+#       define robin_log_err(id, fmt, args...) \
+            _robin_log_print(ROBIN_LOG_ERR, id, fmt "\n", ## args)
 #   else
 #       define robin_log_err(id, fmt, ...)
 #   endif
 #   if ROBIN_LOG_LEVEL >= 1
-#       define robin_log_warn(id, fmt, ...) \
-            _robin_log_print(ROBIN_LOG_WARN, (id),  (fmt) __VA_OPT__(,) __VA_ARGS__)
+#       define robin_log_warn(id, fmt, args...) \
+            _robin_log_print(ROBIN_LOG_WARN, id, fmt "\n", ## args)
 #   else
 #       define robin_log_warn(id, fmt, ...)
 #   endif
 #   if ROBIN_LOG_LEVEL >= 2
-#       define robin_log_info(id, fmt, ...) \
-            _robin_log_print(ROBIN_LOG_INFO, (id),  (fmt) __VA_OPT__(,) __VA_ARGS__)
+#       define robin_log_info(id, fmt, args...) \
+            _robin_log_print(ROBIN_LOG_INFO, id, fmt "\n", ## args)
 #   else
 #       define robin_log_info(id, fmt, ...)
 #   endif
@@ -51,6 +51,7 @@ typedef enum robin_log_id {
     ROBIN_LOG_ID_LOG = 0,
     ROBIN_LOG_ID_MAIN,
     ROBIN_LOG_ID_POOL,
+    ROBIN_LOG_ID_SOCKET,
     ROBIN_LOG_ID_RT_BASE = 1000
 } robin_log_id_t;
 

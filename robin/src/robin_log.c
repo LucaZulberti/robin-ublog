@@ -11,32 +11,28 @@
 
 #include "robin_log.h"
 
-static const char log_header_err[]  = "[ERROR]  ";
-static const char log_header_warn[] = "[WARNING]";
-static const char log_header_info[] = "[INFO]   ";
-
 void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *fmt, ...)
 {
     FILE *fp;
     va_list args, test_args;
-    const char *log_header;
+    const char *log_hdr;
     char *msg, *id_str;
     int msg_len;
 
     switch(log_lvl) {
         case ROBIN_LOG_ERR:
             fp = stderr;
-            log_header = log_header_err;
+            log_hdr = "[ERROR]  ";
             break;
 
         case ROBIN_LOG_WARN:
             fp = stderr;
-            log_header = log_header_warn;
+            log_hdr = "[WARNING]";
             break;
 
         case ROBIN_LOG_INFO:
             fp = stdout;
-            log_header = log_header_info;
+            log_hdr = "[INFO]   ";
             break;
     }
 
@@ -67,14 +63,17 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
                 id_str = "rt_pool";
                 break;
 
+            case ROBIN_LOG_ID_SOCKET:
+                id_str = "socket";
+                break;
+
             default:
                 id_str = "???";
                 break;
         }
-        fprintf(fp, "%s %s: %s\n", log_header, id_str, msg);
+        fprintf(fp, "%s %s: %s", log_hdr, id_str, msg);
     } else {
-        fprintf(fp, "%s rt#%d: %s\n", log_header, id - ROBIN_LOG_ID_RT_BASE,
-                msg);
+        fprintf(fp, "%s rt#%d: %s", log_hdr, id - ROBIN_LOG_ID_RT_BASE, msg);
     }
 
     free(msg);

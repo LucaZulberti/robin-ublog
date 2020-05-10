@@ -9,16 +9,11 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <netinet/in.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
 
 #include "robin.h"
 #include "robin_thread.h"
+#include "socket.h"
 
 
 /*
@@ -53,16 +48,14 @@ static void usage(void)
 /*
  * TCP parameters
  */
-static char *host;
-static int port;
-
 
 int main(int argc, char **argv)
 {
-    size_t host_len;
-    int server_fd, newclient_fd;
-    struct sockaddr_in serv_addr;
     const int log_id = ROBIN_LOG_ID_MAIN;
+    int port;
+    char *h_name;
+    size_t h_name_len;
+    int server_fd, newclient_fd;
     int ret;
 
     welcome();
@@ -77,62 +70,33 @@ int main(int argc, char **argv)
     }
 
     /* save host string */
-    host_len = strlen(argv[1]);
-    host = malloc((host_len + 1) * sizeof(char));
-    if (!host) {
+    h_name_len = strlen(argv[1]);
+    h_name = malloc((h_name_len + 1) * sizeof(char));
+    if (!h_name) {
         robin_log_err(log_id, "%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    memcpy(host, argv[1], host_len);
+    memcpy(h_name, argv[1], h_name_len);
 
     /* parse port */
     port = atoi(argv[2]);
+
+	robin_log_info(log_id, "local address is %s and port is %d", h_name, port);
 
 
     /*
      * Socket creation and listening
      */
 
-    robin_log_info(log_id, "requested host: %s", host);
-    robin_log_info(log_id, "requested port: %d", port);
-
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0) {
-        robin_log_err(log_id, "%s", strerror(errno));
+    if (socket_open_listen(h_name, port, &server_fd) < 0) {
+        robin_log_err(log_id, "failed to start the server socket");
         exit(EXIT_FAILURE);
     }
 
-    /* init serv_addr structure */
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-
-    if (!strcmp(host, "localhost"))
-        ret = inet_pton(serv_addr.sin_family,
-                        "127.0.0.1", &(serv_addr.sin_addr));
-    else
-        ret = inet_pton(serv_addr.sin_family, host, &(serv_addr.sin_addr));
-    if (!ret) {
-        robin_log_err(log_id, "hostname %s is invalid", host);
+    if (socket_set_keepalive(server_fd, 10, 10, 6) < 0) {
+        robin_log_err(log_id, "failed to set keepalive socket options");
         exit(EXIT_FAILURE);
     }
-
-    serv_addr.sin_port = htons(port);
-
-    ret = bind(server_fd, (struct sockaddr *) &serv_addr,
-               sizeof(serv_addr));
-    if (ret < 0) {
-        robin_log_err(log_id, "%s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    ret = listen(server_fd, 1);
-    if (ret < 0) {
-        robin_log_err(log_id, "%s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    robin_log_info(log_id, "server listening on: <%s:%d>",
-                   host, port);
 
 
     /*
@@ -150,9 +114,9 @@ int main(int argc, char **argv)
      */
 
     while (1) {
-        newclient_fd = accept(server_fd, NULL, NULL);
-        if (newclient_fd < 0) {
-            robin_log_err(log_id, "%s", strerror(errno));
+        ret = socket_accept_connection(server_fd, &newclient_fd);
+        if (ret < 0) {
+            robin_log_err(log_id, "failed to accept client connection");
             /* waiting for another client */
             break;
         }

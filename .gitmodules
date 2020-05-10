@@ -1,0 +1,3 @@
+[submodule "make-common"]
+	path = make-common
+	url = https://github.com/LucaZulberti/c-makefile-advanced.git
