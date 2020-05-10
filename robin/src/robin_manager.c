@@ -41,7 +41,7 @@ typedef robin_cmd_retval_t (*robin_cmd_fn_t)(const robin_thread_t *rt,
 
 typedef struct robin_cmd {
     char *name;
-    char *usage;
+    char *desc;
     robin_cmd_fn_t fn;
 } robin_cmd_t;
 
@@ -53,15 +53,15 @@ robin_cmd_quit(const robin_thread_t *rt, char *args);
 static robin_cmd_t robin_cmds[] = {
     {
         .name = "help",
-        .usage = "",
+        .desc = "print this help",
         .fn = robin_cmd_help
     },
     {
         .name = "quit",
-        .usage = "",
+        .desc = "terminate the connection with the server",
         .fn = robin_cmd_quit
     },
-    { .name = NULL, .usage = NULL, .fn = NULL } /* terminator */
+    { .name = NULL, .desc = NULL, .fn = NULL } /* terminator */
 };
 
 
@@ -84,18 +84,18 @@ static int socket_send_reply(const robin_thread_t *rt, const char *fmt, ...)
 
     reply = malloc(reply_len * sizeof(char));
     if (!reply) {
-        robin_log_err(log_id, "%s", strerror(errno));
+        robin_log_err(log_id, "malloc: %s", strerror(errno));
         return -1;
     }
 
     if (vsnprintf(reply, reply_len + 1, fmt, args) < 0) {
-        robin_log_err(log_id, "%s", strerror(errno));
+        robin_log_err(log_id, "vsnprintf: %s", strerror(errno));
         return -1;
     }
     va_end(args);
 
     if (socket_sendn(rt->fd, reply, reply_len) < 0) {
-        robin_log_err(log_id, "%s", strerror(errno));
+        robin_log_err(log_id, "socket_sendn: failed to send data to socket");
         free(reply);
         return -1;
     }
@@ -118,7 +118,7 @@ robin_cmd_retval_t robin_cmd_help(const robin_thread_t *rt, char *args)
         return ROBIN_CMD_ERR;
 
     for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-        if (robin_reply(rt, "\t- %s %s", cmd->name, cmd->usage) < 0)
+        if (robin_reply(rt, "%s\t%s", cmd->name, cmd->desc) < 0)
             return ROBIN_CMD_ERR;
     }
 
