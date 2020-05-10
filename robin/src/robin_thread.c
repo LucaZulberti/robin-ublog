@@ -10,10 +10,9 @@
  */
 
 #include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "robin.h"
 #include "robin_manager.h"
@@ -25,17 +24,6 @@
  */
 
 #define ROBIN_THREAD_POOL_RT_NUM 4
-
-typedef struct robin_thread {
-    pthread_t thread;  /* phtread fd */
-    unsigned int id;   /* thread id */
-
-    sem_t busy;                /* semaphore for non-active wait when free */
-    struct robin_thread *next; /* next available Robin Thread if not busy */
-
-    /* Robin Thread data */
-    int fd;
-} robin_thread_t;
 
 static const int log_id = ROBIN_LOG_ID_POOL;
 static robin_thread_t *rt_pool;
@@ -109,10 +97,15 @@ static void *rt_loop(void *ctx)
         robin_log_info(rt_log_id, "serving fd=%d", me->fd);
 
         /* handle requests from client until disconnected */
-        robin_manage_connection(rt_log_id, me->fd);
+        robin_manage_connection(me);
 
         /* re-initialize this RT's data */
         me->fd = -1;
+        if (me->buf) {
+            free(me->buf);
+            me->buf = NULL;
+        }
+        me->len = 0;
 
         /* push this RT in the free list */
         rt_free_list_push(me);

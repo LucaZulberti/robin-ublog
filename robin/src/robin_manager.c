@@ -11,17 +11,19 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 
 #include "robin.h"
 #include "robin_manager.h"
+#include "socket.h"
 
 
 /*
  * Robin Manager types and data
  */
 
-#define ROBIN_MANAGER_MSG_HUNK_LEN 64
+#define ROBIN_CMD_LEN 300
 
 typedef enum robin_cmd_retval {
     ROBIN_CMD_ERR = -1,
@@ -34,7 +36,7 @@ typedef struct robin_cmd_ctx {
     int fd;
 } robin_cmd_ctx_t;
 
-typedef robin_cmd_retval_t (*robin_cmd_fn_t)(const robin_cmd_ctx_t *ctx,
+typedef robin_cmd_retval_t (*robin_cmd_fn_t)(const robin_thread_t *rt,
                                              char *args);
 
 typedef struct robin_cmd {
@@ -44,9 +46,9 @@ typedef struct robin_cmd {
 } robin_cmd_t;
 
 static robin_cmd_retval_t
-robin_cmd_help(const robin_cmd_ctx_t *ctx, char *args);
+robin_cmd_help(const robin_thread_t *rt, char *args);
 static robin_cmd_retval_t
-robin_cmd_quit(const robin_cmd_ctx_t *ctx, char *args);
+robin_cmd_quit(const robin_thread_t *rt, char *args);
 
 static robin_cmd_t robin_cmds[] = {
     {
@@ -63,80 +65,13 @@ static robin_cmd_t robin_cmds[] = {
 };
 
 
-
 /*
  * Local functions
  */
-
-int sock_readline(const robin_cmd_ctx_t *ctx, char **buf)
+#define robin_reply(rt, fmt, args...) socket_send_reply(rt, fmt "\n", ## args)
+static int socket_send_reply(const robin_thread_t *rt, const char *fmt, ...)
 {
-    const int log_id = ctx->log_id;
-    const int fd = ctx->fd;
-    int n, index, allocated_hunks;
-    char c, *tmp_buf = NULL;
-
-    allocated_hunks = 0;
-    index = 0;
-    do {
-        /* allocate memory if necessary */
-        if (index == ROBIN_MANAGER_MSG_HUNK_LEN * allocated_hunks) {
-            tmp_buf = realloc(tmp_buf, ROBIN_MANAGER_MSG_HUNK_LEN
-                                       * (allocated_hunks + 1));
-            if (!tmp_buf) {
-                robin_log_err(log_id, "%s", strerror(errno));
-                return -1;
-            }
-
-            allocated_hunks++;
-        }
-
-        /* read a byte */
-        n = read(fd, &c, 1);
-        if (n < 0) {
-            robin_log_err(log_id, "%s", strerror(errno));
-            return -1;
-        }
-
-        if (c == '\n') {
-            /* discard \r in \r\n sequence */
-            if (tmp_buf[index - 1] == '\r')
-                index--;
-
-            tmp_buf[index] = '\0';
-
-            break;
-        }
-
-        tmp_buf[index++] = c;
-    } while (1);
-
-    *buf = tmp_buf;
-
-    return index;
-}
-
-int writen(const robin_cmd_ctx_t *ctx, const char *msg, int len)
-{
-    const int log_id = ctx->log_id;
-    const int fd = ctx->fd;
-    int nwritten, nleft = len;
-
-    while (nleft) {
-        nwritten = write(fd, msg, nleft);
-        if (nwritten < 0) {
-            robin_log_err(log_id, "%s", strerror(errno));
-            return -1;
-        }
-
-        nleft -= nwritten;
-    }
-
-    return 0;
-}
-
-static int socket_reply(const robin_cmd_ctx_t *ctx, const char *fmt, ...)
-{
-    const int log_id = ctx->log_id;
+    const int log_id = ROBIN_LOG_ID_RT_BASE + rt->id;
     va_list args, test_args;
     char *reply;
     int reply_len;
@@ -159,7 +94,7 @@ static int socket_reply(const robin_cmd_ctx_t *ctx, const char *fmt, ...)
     }
     va_end(args);
 
-    if (writen(ctx, reply, reply_len) < 0) {
+    if (socket_sendn(rt->fd, reply, reply_len) < 0) {
         robin_log_err(log_id, "%s", strerror(errno));
         free(reply);
         return -1;
@@ -173,28 +108,28 @@ static int socket_reply(const robin_cmd_ctx_t *ctx, const char *fmt, ...)
  * Local Robin Commands
  */
 
-robin_cmd_retval_t robin_cmd_help(const robin_cmd_ctx_t *ctx, char *args)
+robin_cmd_retval_t robin_cmd_help(const robin_thread_t *rt, char *args)
 {
     (void) args;
     robin_cmd_t *cmd;
     const int ncmds = sizeof(robin_cmds) / sizeof(robin_cmd_t) - 1;
 
-    if (socket_reply(ctx, "%d available commands:\n", ncmds) < 0)
+    if (robin_reply(rt, "%d available commands:", ncmds) < 0)
         return ROBIN_CMD_ERR;
 
     for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-        if (socket_reply(ctx, "\t- %s %s\n", cmd->name, cmd->usage) < 0)
+        if (robin_reply(rt, "\t- %s %s", cmd->name, cmd->usage) < 0)
             return ROBIN_CMD_ERR;
     }
 
     return ROBIN_CMD_OK;
 }
 
-robin_cmd_retval_t robin_cmd_quit(const robin_cmd_ctx_t *ctx, char *args)
+robin_cmd_retval_t robin_cmd_quit(const robin_thread_t *rt, char *args)
 {
     (void) args;
 
-    if (socket_reply(ctx, "0 bye bye!\n") < 0)
+    if (robin_reply(rt, "0 bye bye!") < 0)
         return ROBIN_CMD_ERR;
 
     return ROBIN_CMD_QUIT;
@@ -205,42 +140,41 @@ robin_cmd_retval_t robin_cmd_quit(const robin_cmd_ctx_t *ctx, char *args)
  * Exported functions
  */
 
-void robin_manage_connection(int log_id, int fd)
+void robin_manage_connection(robin_thread_t *rt)
 {
-    int n;
-    char *msg, *args;
-    robin_cmd_t *cmd;
-    const robin_cmd_ctx_t ctx = {
-        .log_id = log_id,
-        .fd = fd
-    };
+    const int log_id = ROBIN_LOG_ID_RT_BASE + rt->id;
+    int nread;
+    char cmd[ROBIN_CMD_LEN], *args;
+    robin_cmd_t *rt_cmd;
 
     while (1) {
-        n = sock_readline(&ctx, &msg);
-        if (n < 0) {
+        nread = socket_recvline(&(rt->buf), &(rt->len), rt->fd,
+                                cmd, ROBIN_CMD_LEN + 1);
+        if (nread < 0) {
             robin_log_err(log_id, "failed to receive a line from the client");
+            goto manager_quit;
+        } else if (nread == 0){
+            robin_log_warn(log_id, "client disconnected");
             goto manager_quit;
         }
 
         /* blank line */
-        if (*msg == '\0') {
-            free(msg);
+        if (*cmd == '\n')
             continue;
-        }
 
-        args = strchr(msg, ' ');
-        /* if there are arguments */
-        if (args) {
-            *args = '\0'; /* terminate command name string */
-            args++;       /* point to the first character in arguments */
-        }
+        args = strchr(cmd, ' ');
+        if (args)
+            *(args++) = '\0'; /* terminate command name string */
+        else
+            cmd[nread - 1] = '\0'; /* substitute \n with \0 */
+
+        robin_log_info(log_id, "command received: %s", cmd);
 
         /* search for the command */
-        for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-            if (!strcmp(msg, cmd->name)) {
-                robin_log_info(log_id, "new command received: %s", cmd->name);
+        for (rt_cmd = robin_cmds; rt_cmd->name != NULL; rt_cmd++) {
+            if (!strcmp(cmd, rt_cmd->name)) {
                 /* execute cmd and evaluate the returned value */
-                switch (cmd->fn(&ctx, args)) {
+                switch (rt_cmd->fn(rt, args)) {
                     case ROBIN_CMD_OK:
                         break;
 
@@ -254,19 +188,15 @@ void robin_manage_connection(int log_id, int fd)
             }
         }
 
-        if (cmd->name == NULL)
-            if (socket_reply(&ctx,
-                             "-1 invalid command; type help for the "
-                             "list of availble commands\n", msg) < 0) {
+        if (rt_cmd->name == NULL)
+            if (robin_reply(rt, "-1 invalid command; type help for the "
+                                "list of availble commands") < 0) {
                 robin_log_err(log_id, "failed to send invalid command reply");
                 goto manager_quit;
             }
-
-        free(msg);
     }
 
 manager_quit:
     robin_log_info(log_id, "connection closed");
-    free(msg);
-    close(fd);
+    socket_close(rt->fd);
 }

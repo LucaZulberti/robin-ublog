@@ -9,6 +9,23 @@
 #ifndef ROBIN_THREAD_H
 #define ROBIN_THREAD_H
 
+#include <stddef.h>
+#include <pthread.h>
+#include <semaphore.h>
+
+typedef struct robin_thread {
+    pthread_t thread;  /* phtread fd */
+    unsigned int id;   /* thread id */
+
+    sem_t busy;                /* semaphore for non-active wait when free */
+    struct robin_thread *next; /* next available Robin Thread if not busy */
+
+    /* Robin Thread data */
+    int fd;
+    char *buf;
+    size_t len;
+} robin_thread_t;
+
 /**
  * @brief Create and spawn all Robin threads in pool.
  *
