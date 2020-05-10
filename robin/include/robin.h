@@ -12,7 +12,7 @@
 
 #include "robin_log.h"
 
-#define ROBIN_VERSION_CORE          "0.3.2s"
+#define ROBIN_VERSION_CORE          "0.4.0"
 #define ROBIN_VERSION_CORE_STRING   "v" ROBIN_VERSION_CORE
 
 #define ROBIN_PRERELEASE            "dev"
