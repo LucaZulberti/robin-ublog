@@ -197,21 +197,26 @@ void robin_manage_connection(int id, int fd)
             continue;
         }
 
+        /* substitute \n or \r\n with \0 */
+        if (nread > 1 && buf[nread - 2] == '\r')
+            buf[nread - 2] = '\0';
+        else
+            buf[nread - 1] = '\0';
+
         /* blank line */
-        if (*buf == '\n')
+        if (*buf == '\0')
             continue;
 
         args = strchr(buf, ' ');
         if (args)
-            *(args++) = '\0'; /* terminate command name string */
-        else
-            buf[nread - 1] = '\0'; /* substitute \n with \0 */
+            *(args++) = '\0'; /* separate cmd from arguments */
 
-        info("command received: %s", buf);
+        dbg("command received: %s", buf);
 
         /* search for the command */
         for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
             if (!strcmp(buf, cmd->name)) {
+                info("recognized command: %s", buf);
                 /* execute cmd and evaluate the returned value */
                 switch (cmd->fn(ctx, args)) {
                     case ROBIN_CMD_OK:
