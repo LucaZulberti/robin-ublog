@@ -17,7 +17,7 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
     FILE *fp;
     va_list args, test_args;
     const char *log_hdr;
-    char *msg, *id_str;
+    char *msg, *alloc_msg, *id_str;
     int msg_len;
 
     switch(log_lvl) {
@@ -48,8 +48,10 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
     msg_len = vsnprintf(NULL, 0, fmt, test_args);
     va_end(test_args);
 
-    msg = malloc(msg_len * sizeof(char));
-    if (!msg)
+    alloc_msg = malloc(msg_len * sizeof(char));
+    if (alloc_msg)
+        msg = alloc_msg;
+    else
         msg = "<couldn't allocate memory for log message>";
 
     vsnprintf(msg, msg_len + 1, fmt, args);
@@ -82,5 +84,6 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
         fprintf(fp, "%s rt#%d: %s", log_hdr, id - ROBIN_LOG_ID_RT_BASE, msg);
     }
 
-    free(msg);
+    if (alloc_msg)
+        free(alloc_msg);
 }
