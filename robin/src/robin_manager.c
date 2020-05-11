@@ -186,11 +186,11 @@ void robin_manage_connection(int id, int fd)
         } else if (nread > ROBIN_CMD_LEN) {
             robin_reply(ctx, "-1 command string exceeds %d characters; cmd dropped",
                         ROBIN_CMD_LEN);
-            free(ctx->buf);
-            ctx->buf = NULL;
+
+            /* discard buffer */
             ctx->len = 0;
 
-            /* Close connection with client if it is too annoying */
+            /* close connection with client if it is too annoying */
             if (++big_cmd_count >= ROBIN_MANAGER_BIGCMD_THRESHOLD)
                 goto manager_quit;
 
