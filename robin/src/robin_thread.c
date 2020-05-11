@@ -25,6 +25,15 @@
 
 #define ROBIN_THREAD_POOL_RT_NUM 4
 
+typedef struct robin_thread {
+    pthread_t thread;  /* phtread fd */
+    unsigned int id;   /* thread id */
+    int fd;            /* associated socket file descriptor */
+
+    sem_t busy;                /* semaphore for non-active wait when free */
+    struct robin_thread *next; /* next available Robin Thread if not busy */
+} robin_thread_t;
+
 static const int log_id = ROBIN_LOG_ID_POOL;
 static robin_thread_t *rt_pool;
 static robin_thread_t *rt_free_list = NULL;
@@ -39,6 +48,7 @@ static pthread_mutex_t rt_free_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int rt_init(robin_thread_t *rt, int id)
 {
     rt->id = id;
+    rt->fd = -1;
 
     /* initially free */
     if (sem_init(&rt->busy, 0, 0)) {
@@ -46,9 +56,6 @@ static int rt_init(robin_thread_t *rt, int id)
         return -1;
     }
     rt->next = NULL;
-
-    rt->fd = -1;
-
     return 0;
 }
 
@@ -97,15 +104,10 @@ static void *rt_loop(void *ctx)
         robin_log_info(rt_log_id, "serving fd=%d", me->fd);
 
         /* handle requests from client until disconnected */
-        robin_manage_connection(me);
+        robin_manage_connection(me->id, me->fd);
 
         /* re-initialize this RT's data */
         me->fd = -1;
-        if (me->buf) {
-            free(me->buf);
-            me->buf = NULL;
-        }
-        me->len = 0;
 
         /* push this RT in the free list */
         rt_free_list_push(me);
@@ -163,7 +165,7 @@ void robin_thread_pool_dispatch(int fd)
     rt = rt_free_list_pop();
     robin_log_info(log_id, "thread %d selected", rt->id);
 
-    /* setup data on the Robin Thread */
+    /* associate socket with the Robin Thread */
     rt->fd = fd;
 
     /* wake up the Robin Thread */
