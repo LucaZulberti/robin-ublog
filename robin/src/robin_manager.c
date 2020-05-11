@@ -191,8 +191,10 @@ void robin_manage_connection(int id, int fd)
             ctx->len = 0;
 
             /* close connection with client if it is too annoying */
-            if (++big_cmd_count >= ROBIN_MANAGER_BIGCMD_THRESHOLD)
+            if (++big_cmd_count >= ROBIN_MANAGER_BIGCMD_THRESHOLD) {
+                warn("the client has issued to many oversized commands");
                 goto manager_quit;
+            }
 
             continue;
         }
