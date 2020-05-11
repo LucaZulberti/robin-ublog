@@ -244,7 +244,7 @@ manager_quit:
         free(ctx->buf);
     free(ctx);
 manager_early_quit:
-    /* log shurtcut cannot be used anymore here */
+    /* log shortcut cannot be used anymore here */
     robin_log_info(log_id, "connection closed");
     socket_close(fd);
 }
