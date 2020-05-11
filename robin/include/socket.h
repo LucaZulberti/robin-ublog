@@ -17,15 +17,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-extern int socket_recvline(char **buf, size_t *len,
-                        int fd, char *vptr, size_t n);
-extern int socket_recvn(int s, void *vptr, size_t n);
-extern int socket_recv(int s, void *vptr, size_t n);
-extern int socket_sendn(int s, void *vptr, size_t n);
+int socket_recvline(char **buf, size_t *len, int fd, char *vptr, size_t n);
+int socket_recvn(int s, void *vptr, size_t n);
+int socket_recv(int s, void *vptr, size_t n);
+int socket_sendn(int s, void *vptr, size_t n);
 
-extern int socket_open_listen(char *host, unsigned short port, int *s_listen);
-extern int socket_accept_connection(int s_listen, int *s_connect);
-extern int socket_set_keepalive(int fd, int idle, int intvl, int cnt);
-extern int socket_close(int s);
+int socket_open_listen(char *host, unsigned short port, int *s_listen);
+int socket_accept_connection(int s_listen, int *s_connect);
+int socket_set_keepalive(int fd, int idle, int intvl, int cnt);
+int socket_close(int s);
 
 #endif /* LINUX_H */

@@ -9,13 +9,12 @@
 #ifndef ROBIN_MANAGER_H
 #define ROBIN_MANAGER_H
 
-#include "robin_thread.h"
-
 /**
  * @brief Manage the connection with the client
  *
- * @param rt Robin Thread handling the connection
+ * @param id Connection ID (Robin Thread ID)
+ * @param fd Socket file descriptor
  */
-void robin_manage_connection(robin_thread_t *rt);
+void robin_manage_connection(int id, int fd);
 
 #endif /* ROBIN_MANAGER_H */

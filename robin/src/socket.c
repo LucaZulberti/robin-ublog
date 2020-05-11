@@ -11,11 +11,29 @@
 #include "socket.h"
 #include "robin.h"
 
-const int log_id = ROBIN_LOG_ID_SOCKET;
+#define SOCKET_ALLOCATION_CHUNK_LEN 64
+#define SOCKET_MAX_BUF_LEN          1024 * SOCKET_ALLOCATION_CHUNK_LEN
+
+
+/*
+ * Log shortcut
+ */
+
+#define err(fmt, args...)  robin_log_err(ROBIN_LOG_ID_SOCKET, fmt, ## args)
+#define warn(fmt, args...) robin_log_warn(ROBIN_LOG_ID_SOCKET, fmt, ## args)
+#define info(fmt, args...) robin_log_info(ROBIN_LOG_ID_SOCKET, fmt, ## args)
+#define dbg(fmt, args...)  robin_log_dbg(ROBIN_LOG_ID_SOCKET, fmt, ## args)
+
 
 /*
  * Local functions
  */
+
+static inline size_t get_allocation_size(int n)
+{
+    return sizeof(char) * SOCKET_ALLOCATION_CHUNK_LEN
+        * ((n / SOCKET_ALLOCATION_CHUNK_LEN) + 1);
+}
 
 static char *findchar(char *s, int c, size_t n)
 {
@@ -62,55 +80,61 @@ static char *findchar(char *s, int c, size_t n)
 static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
 {
     int nstr, nread;
-    char *ptr = vptr;
     char *end;
 
     if (!buf)
         return -EINVAL;
 
-    if (!*buf) {		/* must allocate buffer */
-        *buf = malloc(sysconf(_SC_PAGESIZE));
-        if (!*buf)
-            return -ENOMEM;
-        *len = 0;	/* buffer exists but within no buffered data */
-    }
-
     nread = 0;
-realloc:
-    if (n - nread <= 0)
-        return -ENOMEM;
-
-    /* Ok, we must read new data in order to hope getting a '\n' char.
-     * We append new read data into "*buf".
-     */
-    *buf = realloc(*buf, *len + n - nread);
     if (!*buf)
-        return -ENOMEM;
+        *len = 0;  /* buffer is not allocated */
 
-again:
-    nread = read(fd, *buf + *len, n);
-    if (nread < 0) {
-        if (errno == EAGAIN)
-            goto again;
+    while (1) {
+        *buf = realloc(*buf, get_allocation_size(
+                                *len + SOCKET_ALLOCATION_CHUNK_LEN));
+        if (!*buf) {
+            err("realloc: %s", strerror(errno));
+            return -1;
+        }
+
+        do {
+            nread = read(fd, *buf, SOCKET_ALLOCATION_CHUNK_LEN);
+        } while (nread < 0 && errno == EAGAIN);
+        dbg("read: nread = %d", nread);
+
+        if (nread < 0) {
+            err("failed to read another chunk from socket");
+            return -1;
+        } else if (nread == 0)  /* EOF! */
+            return 0;
+
+        /* Now let's try to find the '\n'! */
+        end = findchar(*buf + *len, '\n', nread);
+        dbg("findchar: end (off) = %p", end - *buf);
+
+        *len += nread;
+
+        if (end)
+            break;
+
+        if (*len >= SOCKET_MAX_BUF_LEN) {
+            err("recvline: internal buffer exceeds maximum allocation size "
+                "(%d)", SOCKET_MAX_BUF_LEN);
+            return -1;
+        }
     }
-    if (nread == 0)		/* EOF! */
-        return 0;
-
-    /* Now let's try to find the '\n'! */
-    end = findchar(*buf + *len, '\n', nread);
-
-    *len += nread;
-    if (!end)
-        goto realloc;
 
     nstr = end - *buf + 1;
-    if (nstr + 1 > n)
-        return nstr + 1;	/* cannot store the string into vptr */
+    if (nstr + 1 > n) {
+        /* line is kept in buffer but not moved in destination */
+        warn("recvline: destination buffer too small");
+        return nstr + 1;  /* cannot store the string into vptr */
+    }
 
-    memcpy(vptr, *buf, nstr);	/* copy the '\n' too */
-    ptr[nstr + 1] = '\0';		/* add the null-terminate char */
+    memcpy(vptr, *buf, nstr);  /* copy the '\n' too */
+    vptr[nstr + 1] = '\0';     /* add the terminating null char */
 
-    memmove(*buf, *buf + nstr, *len - nstr); /* update buf data */
+    memmove(*buf, *buf + nstr, *len - nstr); /* update buf data with remaining read bytes */
     *len -= nstr;
 
     return nstr;
@@ -119,19 +143,20 @@ again:
 static int readn(int fd, void *vptr, size_t n)
 {
     int nleft = n, nread;
-    char *ptr = vptr;
 
     while (nleft > 0) {
-        nread = read(fd, ptr, nleft);
+        do {
+            nread = read(fd, vptr, nleft);
+        } while (nread < 0 && errno == EAGAIN);
+
         if (nread < 0) {
-            if (errno != EAGAIN)
-                return -1;
-            nread = 0;
+            err("read: %s", strerror(errno));
+            return -1;
         } else if (nread == 0)
             break;
 
         nleft -= nread;
-        ptr += nread;
+        vptr += nread;
     }
 
     return n - nleft;
@@ -140,23 +165,25 @@ static int readn(int fd, void *vptr, size_t n)
 static int writen(int fd, void *vptr, size_t n)
 {
     int nleft = n, nwritten;
-    char *ptr = vptr;
 
     while (nleft > 0) {
-        nwritten = write(fd, ptr, nleft);
+        do {
+            nwritten = write(fd, vptr, nleft);
+        } while (nwritten < 0 && errno == EAGAIN);
+
         if (nwritten < 0) {
-            if (errno != EAGAIN)
-                return -1;
-            nwritten = 0;
+            err("write: %s", strerror(errno));
+            return -1;
         } else if (nwritten == 0)
             break;
 
         nleft -= nwritten;
-        ptr += nwritten;
+        vptr += nwritten;
     }
 
     return n - nleft;
 }
+
 
 /*
  * Exported functions
@@ -197,12 +224,12 @@ int socket_open_listen(char *host, unsigned short port, int *s_listen)
 
     ret = getaddrinfo(host, NULL, &hints, &addr);
     if (ret) {
-        robin_log_err(log_id, "getaddrinfo: %s", gai_strerror(ret));
+        err("getaddrinfo: %s", gai_strerror(ret));
         goto open_listen_error;
     }
 
     if (addr == NULL) {
-        robin_log_err(log_id, "unable to find host \"%s\"", host);
+        err("unable to find host \"%s\"", host);
         goto open_listen_error;
     }
 
@@ -211,24 +238,24 @@ int socket_open_listen(char *host, unsigned short port, int *s_listen)
 
     ret = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
     if (ret < 0) {
-        robin_log_err(log_id, "socket: %s", strerror(errno));
+        err("socket: %s", strerror(errno));
         goto open_listen_error;
     }
     *s_listen = ret;
 
     ret = bind(*s_listen, addr->ai_addr, addr->ai_addrlen);
     if (ret < 0) {
-        robin_log_err(log_id, "bind: %s", strerror(errno));
+        err("bind: %s", strerror(errno));
         goto open_listen_error;
     }
 
     ret = listen(*s_listen, 10);
     if (ret < 0) {
-        robin_log_err(log_id, "listen: %s", strerror(errno));
+        err("listen: %s", strerror(errno));
         goto open_listen_error;
     }
 
-    robin_log_info(log_id, "server listening for incoming connections");
+    info("server listening for incoming connections");
 
     ret = 0;
 
@@ -246,7 +273,7 @@ int socket_accept_connection(int s_listen, int *s_connect)
 
     ret = accept(s_listen, (struct sockaddr *) &sock_addr, &sock_addr_len);
     if (ret < 0) {
-        robin_log_err(log_id, "accept: %s", strerror(errno));
+        err("accept: %s", strerror(errno));
         return -1;
     }
     *s_connect = ret;
@@ -255,9 +282,9 @@ int socket_accept_connection(int s_listen, int *s_connect)
                       host, NI_MAXHOST, service, NI_MAXSERV,
                       NI_NUMERICSERV);
     if (ret == 0)
-        robin_log_info(log_id, "new client from %s:%s", host, service);
+        info("new client from %s:%s", host, service);
     else
-        robin_log_err(log_id, "getnameinfo: %s", gai_strerror(ret));
+        err("getnameinfo: %s", gai_strerror(ret));
 
     return 0;
 }
@@ -270,7 +297,7 @@ int socket_set_keepalive(int fd, int idle, int intvl, int cnt)
     /* Set TCP keepalive on */
     ret = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &on, sizeof(on));
     if (ret < 0) {
-        robin_log_err(log_id, "setsocket(SOL_SOCKET): %s", strerror(errno));
+        err("setsocket(SOL_SOCKET): %s", strerror(errno));
         return -1;
     }
     /* TCP keepalive parameters are:
@@ -281,20 +308,17 @@ int socket_set_keepalive(int fd, int idle, int intvl, int cnt)
      */
     ret = setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, (char *) &idle, sizeof(idle));
     if (ret < 0) {
-        robin_log_err(log_id, "setsocket(SOL_TCP/TCP_KEEPIDLE): %s",
-                      strerror(errno));
+        err("setsocket(SOL_TCP/TCP_KEEPIDLE): %s", strerror(errno));
         return -1;
     }
     ret = setsockopt(fd, SOL_TCP, TCP_KEEPINTVL, (char *) &intvl, sizeof(intvl));
     if (ret < 0) {
-        robin_log_err(log_id, "setsocket(SOL_TCP/TCP_KEEPINTVL): %s",
-                      strerror(errno));
+        err("setsocket(SOL_TCP/TCP_KEEPINTVL): %s", strerror(errno));
         return -1;
     }
     ret = setsockopt(fd, SOL_TCP, TCP_KEEPCNT, (char *) &cnt, sizeof(cnt));
     if (ret < 0) {
-        robin_log_err(log_id, "setsocket(SOL_TCP/TCP_KEEPCNT): %s",
-                      strerror(errno));
+        err("setsocket(SOL_TCP/TCP_KEEPCNT): %s", strerror(errno));
         return -1;
     }
 
