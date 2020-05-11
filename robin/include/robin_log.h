@@ -10,8 +10,7 @@
 #ifndef ROBIN_LOG_H
 #define ROBIN_LOG_H
 
-#include <stdarg.h>
-
+#define ROBIN_LOG_LEVEL_DEBUG 3
 #define ROBIN_LOG_LEVEL_INFO  2
 #define ROBIN_LOG_LEVEL_WARN  1
 #define ROBIN_LOG_LEVEL_ERR   0
@@ -27,23 +26,31 @@
 #endif
 
 #if ROBIN_LOG_ENABLED == 1
-#   if ROBIN_LOG_LEVEL >= 0
+#   if ROBIN_LOG_LEVEL >= ROBIN_LOG_LEVEL_ERR
 #       define robin_log_err(id, fmt, args...) \
-            _robin_log_print(ROBIN_LOG_ERR, id, fmt "\n", ## args)
+            _robin_log_print(ROBIN_LOG_ERR, id, fmt " (%s: %d)\n", ## args, \
+                             __FILE__, __LINE__)
 #   else
 #       define robin_log_err(id, fmt, ...)
 #   endif
-#   if ROBIN_LOG_LEVEL >= 1
+#   if ROBIN_LOG_LEVEL >= ROBIN_LOG_LEVEL_WARN
 #       define robin_log_warn(id, fmt, args...) \
             _robin_log_print(ROBIN_LOG_WARN, id, fmt "\n", ## args)
 #   else
 #       define robin_log_warn(id, fmt, ...)
 #   endif
-#   if ROBIN_LOG_LEVEL >= 2
+#   if ROBIN_LOG_LEVEL >= ROBIN_LOG_LEVEL_INFO
 #       define robin_log_info(id, fmt, args...) \
             _robin_log_print(ROBIN_LOG_INFO, id, fmt "\n", ## args)
 #   else
 #       define robin_log_info(id, fmt, ...)
+#   endif
+#   if ROBIN_LOG_LEVEL >= ROBIN_LOG_LEVEL_DEBUG
+#       define robin_log_dbg(id, fmt, args...) \
+            _robin_log_print(ROBIN_LOG_DEBUG, id, fmt " (%s: %d)\n", ## args, \
+                             __FILE__, __LINE__)
+#   else
+#       define robin_log_dbg(id, fmt, ...)
 #   endif
 #endif /* ROBIN_LOG_ENABLED */
 
@@ -57,8 +64,9 @@ typedef enum robin_log_id {
 
 typedef enum robin_log_level {
     ROBIN_LOG_ERR = 0,
-    ROBIN_LOG_WARN = 1,
-    ROBIN_LOG_INFO = 2
+    ROBIN_LOG_WARN,
+    ROBIN_LOG_INFO,
+    ROBIN_LOG_DEBUG
 } robin_log_level_t;
 
 /**

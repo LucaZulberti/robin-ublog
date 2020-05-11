@@ -6,6 +6,7 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -33,6 +34,11 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
         case ROBIN_LOG_INFO:
             fp = stdout;
             log_hdr = "[INFO]   ";
+            break;
+
+        case ROBIN_LOG_DEBUG:
+            fp = stdout;
+            log_hdr = "[DEBUG]  ";
             break;
     }
 
