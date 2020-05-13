@@ -26,8 +26,22 @@
 
 
 /*
- * Local macros
+ * Local types and macros
  */
+
+struct robin_ctx {
+    int fd; /* socket file descriptor */
+
+    /* Robin recvline */
+    char *buf;
+    size_t len;
+
+    /* Robin Log */
+    int log_id;
+
+    /* Robin User */
+    int logged;
+};
 
 #define ROBIN_CMD_FN(name, ctx, args) robin_cmd_retval_t robin_cmd_##name(robin_ctx_t *ctx, char *args)
 #define ROBIN_CMD_ENTRY(cmd_name, cmd_desc) { \
@@ -177,4 +191,16 @@ int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...)
 
     free(reply);
     return 0;
+}
+
+int robin_recvline(robin_ctx_t *ctx, char *vptr, size_t n)
+{
+    int nread;
+
+    nread = socket_recvline(&(ctx->buf), &(ctx->len), ctx->fd, vptr, n);
+
+    if (nread > n)
+        ctx->len = 0; /* discard the command in buffer */
+
+    return nread;
 }

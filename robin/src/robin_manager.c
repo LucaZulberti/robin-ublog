@@ -52,8 +52,7 @@ void robin_manage_connection(int id, int fd)
         goto manager_early_quit;
 
     while (1) {
-        nread = socket_recvline(&(ctx->buf), &(ctx->len), ctx->fd,
-                                buf, ROBIN_CMD_MAX_LEN + 1);
+        nread = robin_recvline(ctx, buf, ROBIN_CMD_MAX_LEN + 1);
         if (nread < 0) {
             err("failed to receive a line from the client");
             goto manager_quit;
@@ -63,9 +62,6 @@ void robin_manage_connection(int id, int fd)
         } else if (nread > ROBIN_CMD_MAX_LEN) {
             robin_reply(ctx, "-1 command string exceeds " STR(ROBIN_CMD_MAX_LEN)
                              " characters: cmd dropped");
-
-            /* discard buffer */
-            ctx->len = 0;
 
             /* close connection with client if it is too annoying */
             if (++big_cmd_count >= ROBIN_MANAGER_BIGCMD_THRESHOLD) {

@@ -17,18 +17,7 @@ typedef enum robin_cmd_retval {
     ROBIN_CMD_QUIT
 } robin_cmd_retval_t;
 
-typedef struct robin_cmd_ctx {
-    /* Robin Manager stuff */
-    int fd;
-    char *buf;
-    size_t len;
-
-    /* Robin Log */
-    int log_id;
-
-    /* Robin connection status */
-    int logged;
-} robin_ctx_t;
+typedef struct robin_ctx robin_ctx_t;
 
 typedef robin_cmd_retval_t (*robin_cmd_fn_t)(robin_ctx_t *ctx, char *args);
 
@@ -67,5 +56,15 @@ void robin_ctx_free(robin_ctx_t *ctx);
  */
 int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...);
 #define robin_reply(ctx, fmt, args...) _robin_reply(ctx, fmt "\n", ## args)
+
+/**
+ * @brief Receive a line from the connected client
+ *
+ * @param ctx  context for the connection
+ * @param vptr pointer to the vector where the line will be stored
+ * @param n    max number of characters to store in vector
+ * @return int 0 on success, -1 on error
+ */
+int robin_recvline(robin_ctx_t *ctx, char *vptr, size_t n);
 
 #endif /* ROBIN_CMD_H */
