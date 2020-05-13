@@ -9,10 +9,6 @@
 #ifndef ROBIN_THREAD_H
 #define ROBIN_THREAD_H
 
-#include <stddef.h>
-#include <pthread.h>
-#include <semaphore.h>
-
 /**
  * @brief Create and spawn all Robin threads in pool.
  *
