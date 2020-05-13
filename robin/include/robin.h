@@ -21,4 +21,9 @@
 
 #define ROBIN_RELEASE_STRING        ROBIN_PRERELEASE_STRING
 
+/*
+ * Utility macros
+ */
+#define STR(x) #x
+
 #endif /* ROBIN_H */
