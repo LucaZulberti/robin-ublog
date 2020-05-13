@@ -225,12 +225,7 @@ int socket_open_listen(char *host, unsigned short port, int *s_listen)
     ret = getaddrinfo(host, NULL, &hints, &addr);
     if (ret) {
         err("getaddrinfo: %s", gai_strerror(ret));
-        goto open_listen_error;
-    }
-
-    if (addr == NULL) {
-        err("unable to find host \"%s\"", host);
-        goto open_listen_error;
+        return ret;
     }
 
     /* override port */
@@ -239,27 +234,27 @@ int socket_open_listen(char *host, unsigned short port, int *s_listen)
     ret = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
     if (ret < 0) {
         err("socket: %s", strerror(errno));
-        goto open_listen_error;
+        goto open_listen_quit;
     }
     *s_listen = ret;
 
     ret = bind(*s_listen, addr->ai_addr, addr->ai_addrlen);
     if (ret < 0) {
         err("bind: %s", strerror(errno));
-        goto open_listen_error;
+        goto open_listen_quit;
     }
 
     ret = listen(*s_listen, 10);
     if (ret < 0) {
         err("listen: %s", strerror(errno));
-        goto open_listen_error;
+        goto open_listen_quit;
     }
 
     info("server listening for incoming connections");
 
     ret = 0;
 
-open_listen_error:
+open_listen_quit:
     freeaddrinfo(addr);
     return ret;
 }
