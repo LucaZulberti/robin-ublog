@@ -42,6 +42,8 @@
  * Local functions
  */
 
+static ROBIN_CMD_FN(register, ctx, args);
+static ROBIN_CMD_FN(login, ctx, args);
 static ROBIN_CMD_FN(help, ctx, args);
 static ROBIN_CMD_FN(quit, ctx, args);
 
@@ -51,6 +53,8 @@ static ROBIN_CMD_FN(quit, ctx, args);
  */
 
 robin_cmd_t robin_cmds[] = {
+    ROBIN_CMD_ENTRY(register, "sign-up to Robin with e-mail and password"),
+    ROBIN_CMD_ENTRY(login, "sign-in to Robin with e-mail and password"),
     ROBIN_CMD_ENTRY(help, "print this help"),
     ROBIN_CMD_ENTRY(quit, "terminate the connection with the server"),
     ROBIN_CMD_ENTRY_NULL /* terminator */
@@ -59,6 +63,30 @@ robin_cmd_t robin_cmds[] = {
 /*
  * Robin function definitions
  */
+
+ROBIN_CMD_FN(register, ctx, args)
+{
+    (void) args;
+
+    robin_reply(ctx, "0 register not implemented yet");
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CMD_FN(login, ctx, args)
+{
+    (void) args;
+
+    if (ctx->logged)
+        robin_reply(ctx, "0 already signed-in");
+    else {
+        ctx->logged = 1;
+        robin_reply(ctx, "0 fake sign-in successfull");
+    }
+
+    return ROBIN_CMD_OK;
+}
+
 
 ROBIN_CMD_FN(help, ctx, args)
 {
@@ -105,6 +133,7 @@ robin_ctx_t *robin_ctx_alloc(int log_id, int fd)
 
     ctx->fd = fd;
     ctx->log_id = log_id;
+    ctx->logged = 0;
 
     return ctx;
 }

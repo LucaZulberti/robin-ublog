@@ -25,6 +25,9 @@ typedef struct robin_cmd_ctx {
 
     /* Robin Log */
     int log_id;
+
+    /* Robin connection status */
+    int logged;
 } robin_ctx_t;
 
 typedef robin_cmd_retval_t (*robin_cmd_fn_t)(robin_ctx_t *ctx, char *args);
