@@ -30,7 +30,16 @@
  * Local types and macros
  */
 
-struct robin_conn {
+#define ROBIN_CONN_BIGCMD_THRESHOLD 5
+#define ROBIN_CONN_CMD_MAX_LEN 300
+
+typedef enum robin_conn_cmd_ret {
+    ROBIN_CMD_ERR = -1,
+    ROBIN_CMD_OK = 0,
+    ROBIN_CMD_QUIT
+} robin_conn_cmd_ret_t;
+
+typedef struct robin_conn {
     int fd; /* socket file descriptor */
 
     /* Robin recvline */
@@ -43,48 +52,56 @@ struct robin_conn {
     /* Robin User */
     int logged;
     robin_user_data_t *data;
-};
+} robin_conn_t;
 
-#define ROBIN_CMD_FN(name, conn, args) \
-    robin_conn_cmd_ret_t robin_cmd_##name(struct robin_conn *conn, char *args)
-#define ROBIN_CMD_FN_DECL(name) static ROBIN_CMD_FN(name,,)
-#define ROBIN_CMD_ENTRY(cmd_name, cmd_desc) { \
+typedef struct robin_conn_cmd {
+    char *name;
+    char *desc;
+    robin_conn_cmd_ret_t (*fn)(robin_conn_t *conn, char *args);
+} robin_conn_cmd_t;
+
+#define ROBIN_CONN_CMD_FN(name, conn, args) \
+    robin_conn_cmd_ret_t rc_cmd_##name(struct robin_conn *conn, char *args)
+#define ROBIN_CONN_CMD_FN_DECL(name) static ROBIN_CONN_CMD_FN(name,,)
+#define ROBIN_CONN_CMD_ENTRY(cmd_name, cmd_desc) { \
     .name = #cmd_name,                        \
     .desc = cmd_desc,                         \
-    .fn = robin_cmd_##cmd_name                \
+    .fn = rc_cmd_##cmd_name                \
 }
-#define ROBIN_CMD_ENTRY_NULL { .name = NULL, .desc = NULL, .fn = NULL }
+#define ROBIN_CONN_CMD_ENTRY_NULL { .name = NULL, .desc = NULL, .fn = NULL }
+
+static int _rc_reply(robin_conn_t *conn, const char *fmt, ...);
+#define rc_reply(conn, fmt, args...) _rc_reply(conn, fmt "\n", ## args)
+
+/*
+ * Robin Command functions declaration
+ */
+
+ROBIN_CONN_CMD_FN_DECL(register);
+ROBIN_CONN_CMD_FN_DECL(login);
+ROBIN_CONN_CMD_FN_DECL(logout);
+ROBIN_CONN_CMD_FN_DECL(help);
+ROBIN_CONN_CMD_FN_DECL(quit);
 
 
 /*
- * Local functions
+ * Local data
  */
 
-ROBIN_CMD_FN_DECL(register);
-ROBIN_CMD_FN_DECL(login);
-ROBIN_CMD_FN_DECL(logout);
-ROBIN_CMD_FN_DECL(help);
-ROBIN_CMD_FN_DECL(quit);
-
-
-/*
- * Exported data
- */
-
-robin_conn_cmd_t robin_cmds[] = {
-    ROBIN_CMD_ENTRY(register, "register to Robin with e-mail and password"),
-    ROBIN_CMD_ENTRY(login, "login to Robin with e-mail and password"),
-    ROBIN_CMD_ENTRY(logout, "logout from Robin"),
-    ROBIN_CMD_ENTRY(help, "print this help"),
-    ROBIN_CMD_ENTRY(quit, "terminate the connection with the server"),
-    ROBIN_CMD_ENTRY_NULL /* terminator */
+static robin_conn_cmd_t robin_cmds[] = {
+    ROBIN_CONN_CMD_ENTRY(register, "register to Robin with e-mail and password"),
+    ROBIN_CONN_CMD_ENTRY(login, "login to Robin with e-mail and password"),
+    ROBIN_CONN_CMD_ENTRY(logout, "logout from Robin"),
+    ROBIN_CONN_CMD_ENTRY(help, "print this help"),
+    ROBIN_CONN_CMD_ENTRY(quit, "terminate the connection with the server"),
+    ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
 };
 
 /*
- * Robin function definitions
+ * Robin Command function definitions
  */
 
-ROBIN_CMD_FN(register, conn, args)
+ROBIN_CONN_CMD_FN(register, conn, args)
 {
     char *email = args, *psw, *end;
     int ret;
@@ -93,7 +110,7 @@ ROBIN_CMD_FN(register, conn, args)
 
     psw = strchr(args, ' ');
     if (!psw) {
-        robin_conn_reply(conn, "-1 no password provided");
+        rc_reply(conn, "-1 no password provided");
         return ROBIN_CMD_OK;
     }
     *(psw++) = '\0';  /* separate email and psw strings */
@@ -107,23 +124,22 @@ ROBIN_CMD_FN(register, conn, args)
 
     ret = robin_user_add(email, psw);
     if (ret < 0) {
-        robin_conn_reply(conn,
-            "-1 could not register the new user into the system");
+        rc_reply(conn, "-1 could not register the new user into the system");
         return ROBIN_CMD_ERR;
     } else if (ret == 1) {
-        robin_conn_reply(conn, "-1 invalid email/password format");
+        rc_reply(conn, "-1 invalid email/password format");
         return ROBIN_CMD_OK;
     } else if (ret == 2) {
-        robin_conn_reply(conn, "-1 user %s is already registered", email);
+        rc_reply(conn, "-1 user %s is already registered", email);
         return ROBIN_CMD_OK;
     }
 
-    robin_conn_reply(conn, "0 user registered successfully");
+    rc_reply(conn, "0 user registered successfully");
 
     return ROBIN_CMD_OK;
 }
 
-ROBIN_CMD_FN(login, conn, args)
+ROBIN_CONN_CMD_FN(login, conn, args)
 {
     char *email = args, *psw, *end;
     robin_user_data_t *data;
@@ -131,14 +147,13 @@ ROBIN_CMD_FN(login, conn, args)
     dbg("login: args=%s", args);
 
     if (conn->logged) {
-        robin_conn_reply(conn, "-2 already signed-in as %s",
-                         conn->data->email);
+        rc_reply(conn, "-2 already signed-in as %s", conn->data->email);
         return ROBIN_CMD_OK;
     }
 
     psw = strchr(args, ' ');
     if (!psw) {
-        robin_conn_reply(conn, "-1 no password provided");
+        rc_reply(conn, "-1 no password provided");
         return ROBIN_CMD_OK;
     }
     *(psw++) = '\0';  /* separete email and psw strings */
@@ -152,39 +167,37 @@ ROBIN_CMD_FN(login, conn, args)
 
     switch (robin_user_acquire_data(email, psw, &data)) {
         case -1:
-            robin_conn_reply(conn,
-                "-1 could not login into the system");
+            rc_reply(conn, "-1 could not login into the system");
             return ROBIN_CMD_ERR;
 
         case 1:
-            robin_conn_reply(conn,
-                "-1 user already logged in from another client");
+            rc_reply(conn, "-1 user already logged in from another client");
             return ROBIN_CMD_OK;
 
         case 2:
-            robin_conn_reply(conn, "-1 invalid email/password");
+            rc_reply(conn, "-1 invalid email/password");
             return ROBIN_CMD_OK;
 
         case 0:
             conn->logged = 1;
             conn->data = data;
-            robin_conn_reply(conn, "0 user logged-in successfully");
+            rc_reply(conn, "0 user logged-in successfully");
             return ROBIN_CMD_OK;
 
         default:
-            robin_conn_reply(conn, "-1 unknown error");
+            rc_reply(conn, "-1 unknown error");
             return ROBIN_CMD_ERR;
     }
 }
 
-ROBIN_CMD_FN(logout, conn, args)
+ROBIN_CONN_CMD_FN(logout, conn, args)
 {
     (void) args;
 
     dbg("logout:");
 
     if (!conn->logged) {
-        robin_conn_reply(conn, "-2 login is required before logout");
+        rc_reply(conn, "-2 login is required before logout");
         return ROBIN_CMD_OK;
     }
 
@@ -192,12 +205,12 @@ ROBIN_CMD_FN(logout, conn, args)
     conn->logged = 0;
     conn->data = NULL;
 
-    robin_conn_reply(conn, "0 logout successfull");
+    rc_reply(conn, "0 logout successfull");
 
     return ROBIN_CMD_OK;
 }
 
-ROBIN_CMD_FN(help, conn, args)
+ROBIN_CONN_CMD_FN(help, conn, args)
 {
     (void) args;
     robin_conn_cmd_t *cmd;
@@ -205,24 +218,24 @@ ROBIN_CMD_FN(help, conn, args)
 
     dbg("help: ncmds=%d", ncmds);
 
-    if (robin_conn_reply(conn, "%d available commands:", ncmds) < 0)
+    if (rc_reply(conn, "%d available commands:", ncmds) < 0)
         return ROBIN_CMD_ERR;
 
     for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-        if (robin_conn_reply(conn, "%s\t%s", cmd->name, cmd->desc) < 0)
+        if (rc_reply(conn, "%s\t%s", cmd->name, cmd->desc) < 0)
             return ROBIN_CMD_ERR;
     }
 
     return ROBIN_CMD_OK;
 }
 
-ROBIN_CMD_FN(quit, conn, args)
+ROBIN_CONN_CMD_FN(quit, conn, args)
 {
     (void) args;
 
     dbg("quit:");
 
-    if (robin_conn_reply(conn, "0 bye bye!") < 0)
+    if (rc_reply(conn, "0 bye bye!") < 0)
         return ROBIN_CMD_ERR;
 
     return ROBIN_CMD_QUIT;
@@ -230,10 +243,10 @@ ROBIN_CMD_FN(quit, conn, args)
 
 
 /*
- * Exported functions
+ * Local functions
  */
 
-robin_conn_t *robin_conn_alloc(int log_id, int fd)
+static robin_conn_t *rc_alloc(int log_id, int fd)
 {
     robin_conn_t *conn;
 
@@ -249,7 +262,7 @@ robin_conn_t *robin_conn_alloc(int log_id, int fd)
     return conn;
 }
 
-void robin_conn_free(robin_conn_t *conn)
+static void rc_free(robin_conn_t *conn)
 {
     if (conn->buf) {
         dbg("conn_free: buf=%p", conn->buf);
@@ -265,7 +278,7 @@ void robin_conn_free(robin_conn_t *conn)
     free(conn);
 }
 
-int _robin_conn_reply(robin_conn_t *conn, const char *fmt, ...)
+static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
 {
     va_list args, test_args;
     char *reply;
@@ -304,7 +317,7 @@ int _robin_conn_reply(robin_conn_t *conn, const char *fmt, ...)
     return 0;
 }
 
-int robin_conn_recvline(robin_conn_t *conn, char *vptr, size_t n)
+static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
 {
     int nread;
 
@@ -314,4 +327,102 @@ int robin_conn_recvline(robin_conn_t *conn, char *vptr, size_t n)
         conn->len = 0; /* discard the command in buffer */
 
     return nread;
+}
+
+
+/*
+ * Exported functions
+ */
+
+/* redefine log shortcuts for the manager */
+#undef err
+#undef warn
+#undef info
+#undef dbg
+#define err(fmt, args...)  robin_log_err(log_id, fmt, ## args)
+#define warn(fmt, args...) robin_log_warn(log_id, fmt, ## args)
+#define info(fmt, args...) robin_log_info(log_id, fmt, ## args)
+#define dbg(fmt, args...)  robin_log_dbg(log_id, fmt, ## args)
+
+void robin_conn_manage(int id, int fd)
+{
+    const int log_id = ROBIN_LOG_ID_RT_BASE + id;
+    int nread, big_cmd_count = 0;
+    char buf[ROBIN_CONN_CMD_MAX_LEN], *args;
+    robin_conn_cmd_t *cmd;
+    robin_conn_t *conn;
+
+    /* setup the context for this connection */
+    conn = rc_alloc(log_id, fd);
+    if (!conn)
+        goto manager_early_quit;
+
+    while (1) {
+        nread = rc_recvline(conn, buf, ROBIN_CONN_CMD_MAX_LEN + 1);
+        if (nread < 0) {
+            err("failed to receive a line from the client");
+            goto manager_quit;
+        } else if (nread == 0){
+            warn("client disconnected");
+            goto manager_quit;
+        } else if (nread > ROBIN_CONN_CMD_MAX_LEN) {
+            rc_reply(conn, "-1 command string exceeds " \
+                     STR(ROBIN_CONN_CMD_MAX_LEN) " characters: cmd dropped");
+
+            /* close connection with client if it is too annoying */
+            if (++big_cmd_count >= ROBIN_CONN_BIGCMD_THRESHOLD) {
+                warn("the client has issued to many oversized commands");
+                goto manager_quit;
+            }
+
+            continue;
+        }
+
+        /* substitute \n or \r\n with \0 */
+        if (nread > 1 && buf[nread - 2] == '\r')
+            buf[nread - 2] = '\0';
+        else
+            buf[nread - 1] = '\0';
+
+        /* blank line */
+        if (*buf == '\0')
+            continue;
+
+        args = strchr(buf, ' ');
+        if (args)
+            *(args++) = '\0'; /* separate cmd from arguments */
+
+        dbg("command received: %s", buf);
+
+        /* search for the command */
+        for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
+            if (!strcmp(buf, cmd->name)) {
+                info("recognized command: %s", buf);
+                /* execute cmd and evaluate the returned value */
+                switch (cmd->fn(conn, args)) {
+                    case ROBIN_CMD_OK:
+                        break;
+
+                    case ROBIN_CMD_ERR:
+                        err("failed to execute the requested command");
+                    case ROBIN_CMD_QUIT:
+                        goto manager_quit;
+                }
+                break;
+            }
+        }
+
+        if (cmd->name == NULL)
+            if (rc_reply(conn, "-1 invalid command; type help for the list of "
+                               "availble commands") < 0) {
+                err("failed to send invalid command reply");
+                goto manager_quit;
+            }
+    }
+
+manager_quit:
+    rc_free(conn);
+manager_early_quit:
+    info("connection closed");
+    socket_close(fd);
 }
