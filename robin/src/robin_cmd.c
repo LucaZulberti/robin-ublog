@@ -44,6 +44,7 @@ struct robin_ctx {
 };
 
 #define ROBIN_CMD_FN(name, ctx, args) robin_cmd_retval_t robin_cmd_##name(robin_ctx_t *ctx, char *args)
+#define ROBIN_CMD_FN_DECL(name) static ROBIN_CMD_FN(name,,)
 #define ROBIN_CMD_ENTRY(cmd_name, cmd_desc) { \
     .name = #cmd_name,                        \
     .desc = cmd_desc,                         \
@@ -56,10 +57,10 @@ struct robin_ctx {
  * Local functions
  */
 
-static ROBIN_CMD_FN(register, ctx, args);
-static ROBIN_CMD_FN(login, ctx, args);
-static ROBIN_CMD_FN(help, ctx, args);
-static ROBIN_CMD_FN(quit, ctx, args);
+ROBIN_CMD_FN_DECL(register);
+ROBIN_CMD_FN_DECL(login);
+ROBIN_CMD_FN_DECL(help);
+ROBIN_CMD_FN_DECL(quit);
 
 
 /*
