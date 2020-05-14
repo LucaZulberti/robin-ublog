@@ -75,6 +75,10 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
                 id_str = "socket";
                 break;
 
+            case ROBIN_LOG_ID_USER:
+                id_str = "user";
+                break;
+
             default:
                 id_str = "???";
                 break;
