@@ -1,13 +1,13 @@
 /*
- * linux.h
+ * socket.h
  *
  * Header file containing function declaration to manage sockets.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#ifndef LINUX_H
-#define LINUX_H
+#ifndef SOCKET_H
+#define SOCKET_H
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -27,4 +27,4 @@ int socket_accept_connection(int s_listen, int *s_connect);
 int socket_set_keepalive(int fd, int idle, int intvl, int cnt);
 int socket_close(int s);
 
-#endif /* LINUX_H */
+#endif /* SOCKET_H */

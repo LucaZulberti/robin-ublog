@@ -1,5 +1,5 @@
 /*
- * robin_cmd.c
+ * robin_conn.c
  *
  * List of Robin commands available for the clients
  *
@@ -15,6 +15,7 @@
 #include "robin_conn.h"
 #include "robin_user.h"
 #include "socket.h"
+
 
 /*
  * Log shortcut
@@ -73,6 +74,7 @@ typedef struct robin_conn_cmd {
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...);
 #define rc_reply(conn, fmt, args...) _rc_reply(conn, fmt "\n", ## args)
 
+
 /*
  * Robin Command functions declaration
  */
@@ -96,6 +98,7 @@ static robin_conn_cmd_t robin_cmds[] = {
     ROBIN_CONN_CMD_ENTRY(quit, "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
 };
+
 
 /*
  * Robin Command function definitions

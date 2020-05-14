@@ -1,3 +1,11 @@
+/*
+ * socket.c
+ *
+ * List of functions to manage Linux sockets.
+ *
+ * Luca Zulberti <l.zulberti@studenti.unipi.it>
+ */
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>

@@ -1,5 +1,5 @@
 /*
- * robin_conn.c
+ * robin_conn.h
  *
  * Header file for Robin Connection layer
  *
