@@ -139,16 +139,14 @@ robin_ctx_t *robin_ctx_alloc(int log_id, int fd)
 {
     robin_ctx_t *ctx;
 
-    ctx = malloc(sizeof(robin_ctx_t));
+    ctx = calloc(1, sizeof(robin_ctx_t));
     if (!ctx) {
-        err("malloc: %s", strerror(errno));
+        err("calloc: %s", strerror(errno));
         return NULL;
     }
-    memset(ctx, 0, sizeof(robin_ctx_t));
 
     ctx->fd = fd;
     ctx->log_id = log_id;
-    ctx->logged = 0;
 
     return ctx;
 }
