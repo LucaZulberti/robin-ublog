@@ -18,7 +18,11 @@
 #define ROBIN_LOG_LEVEL_DEFAULT ROBIN_LOG_LEVEL_INFO
 
 #ifndef ROBIN_LOG_LEVEL
-#   define ROBIN_LOG_LEVEL ROBIN_LOG_LEVEL_DEFAULT
+#   if defined DEBUG && DEBUG == 1
+#       define ROBIN_LOG_LEVEL ROBIN_LOG_LEVEL_DEBUG
+#   else
+#       define ROBIN_LOG_LEVEL ROBIN_LOG_LEVEL_DEFAULT
+#   endif
 #endif
 
 #ifndef ROBIN_LOG_ENABLED
@@ -59,6 +63,7 @@ typedef enum robin_log_id {
     ROBIN_LOG_ID_MAIN,
     ROBIN_LOG_ID_POOL,
     ROBIN_LOG_ID_SOCKET,
+    ROBIN_LOG_ID_USER,
     ROBIN_LOG_ID_RT_BASE = 1000
 } robin_log_id_t;
 

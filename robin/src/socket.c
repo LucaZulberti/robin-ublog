@@ -8,8 +8,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "socket.h"
 #include "robin.h"
+#include "socket.h"
 
 #define SOCKET_ALLOCATION_CHUNK_LEN 64
 #define SOCKET_MAX_BUF_LEN          1024 * SOCKET_ALLOCATION_CHUNK_LEN
@@ -31,8 +31,11 @@
 
 static inline size_t get_allocation_size(int n)
 {
-    return sizeof(char) * SOCKET_ALLOCATION_CHUNK_LEN
-        * ((n / SOCKET_ALLOCATION_CHUNK_LEN) + 1);
+    int nblock = (n % SOCKET_ALLOCATION_CHUNK_LEN)
+                 ? (n / SOCKET_ALLOCATION_CHUNK_LEN) + 1
+                 : (n / SOCKET_ALLOCATION_CHUNK_LEN);
+
+    return sizeof(char) * SOCKET_ALLOCATION_CHUNK_LEN * nblock;
 }
 
 static char *findchar(char *s, int c, size_t n)
@@ -98,7 +101,8 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
         }
 
         do {
-            nread = read(fd, *buf, SOCKET_ALLOCATION_CHUNK_LEN);
+            nread = read(fd, *buf + *len, SOCKET_ALLOCATION_CHUNK_LEN);
+            dbg("recvline: nread=%d", nread);
         } while (nread < 0 && errno == EAGAIN);
         dbg("read: nread = %d", nread);
 
@@ -108,9 +112,11 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
         } else if (nread == 0)  /* EOF! */
             return 0;
 
+        dbg("recvline: buf=%s", *buf);
+
         /* Now let's try to find the '\n'! */
         end = findchar(*buf + *len, '\n', nread);
-        dbg("findchar: end (off) = %p", end - *buf);
+        dbg("findchar: end=%p *buf=%p", end, *buf);
 
         *len += nread;
 
@@ -225,12 +231,7 @@ int socket_open_listen(char *host, unsigned short port, int *s_listen)
     ret = getaddrinfo(host, NULL, &hints, &addr);
     if (ret) {
         err("getaddrinfo: %s", gai_strerror(ret));
-        goto open_listen_error;
-    }
-
-    if (addr == NULL) {
-        err("unable to find host \"%s\"", host);
-        goto open_listen_error;
+        return ret;
     }
 
     /* override port */
@@ -239,27 +240,27 @@ int socket_open_listen(char *host, unsigned short port, int *s_listen)
     ret = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
     if (ret < 0) {
         err("socket: %s", strerror(errno));
-        goto open_listen_error;
+        goto open_listen_quit;
     }
     *s_listen = ret;
 
     ret = bind(*s_listen, addr->ai_addr, addr->ai_addrlen);
     if (ret < 0) {
         err("bind: %s", strerror(errno));
-        goto open_listen_error;
+        goto open_listen_quit;
     }
 
     ret = listen(*s_listen, 10);
     if (ret < 0) {
         err("listen: %s", strerror(errno));
-        goto open_listen_error;
+        goto open_listen_quit;
     }
 
     info("server listening for incoming connections");
 
     ret = 0;
 
-open_listen_error:
+open_listen_quit:
     freeaddrinfo(addr);
     return ret;
 }

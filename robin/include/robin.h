@@ -10,15 +10,32 @@
 #ifndef ROBIN_H
 #define ROBIN_H
 
+/*
+ * Common include
+ */
+
 #include "robin_log.h"
 
-#define ROBIN_VERSION_CORE          "0.4.1"
+
+/*
+ * Robin release string
+ */
+
+#define ROBIN_VERSION_CORE          "0.5.0"
 #define ROBIN_VERSION_CORE_STRING   "v" ROBIN_VERSION_CORE
 
 #define ROBIN_PRERELEASE            "dev"
 #define ROBIN_PRERELEASE_STRING     ROBIN_VERSION_CORE_STRING \
                                     "-" ROBIN_PRERELEASE
 
-#define ROBIN_RELEASE_STRING        ROBIN_PRERELEASE_STRING
+#define ROBIN_RELEASE_STRING        ROBIN_VERSION_CORE_STRING
+
+
+/*
+ * Utility macros
+ */
+
+#define _STR(x) #x
+#define STR(x) _STR(x)
 
 #endif /* ROBIN_H */
