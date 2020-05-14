@@ -13,6 +13,7 @@
 
 #include "robin.h"
 #include "robin_cmd.h"
+#include "robin_user.h"
 #include "socket.h"
 
 /*
@@ -41,6 +42,7 @@ struct robin_ctx {
 
     /* Robin User */
     int logged;
+    robin_user_data_t *data;
 };
 
 #define ROBIN_CMD_FN(name, ctx, args) robin_cmd_retval_t robin_cmd_##name(robin_ctx_t *ctx, char *args)
@@ -59,6 +61,7 @@ struct robin_ctx {
 
 ROBIN_CMD_FN_DECL(register);
 ROBIN_CMD_FN_DECL(login);
+ROBIN_CMD_FN_DECL(logout);
 ROBIN_CMD_FN_DECL(help);
 ROBIN_CMD_FN_DECL(quit);
 
@@ -68,8 +71,9 @@ ROBIN_CMD_FN_DECL(quit);
  */
 
 robin_cmd_t robin_cmds[] = {
-    ROBIN_CMD_ENTRY(register, "sign-up to Robin with e-mail and password"),
-    ROBIN_CMD_ENTRY(login, "sign-in to Robin with e-mail and password"),
+    ROBIN_CMD_ENTRY(register, "register to Robin with e-mail and password"),
+    ROBIN_CMD_ENTRY(login, "login to Robin with e-mail and password"),
+    ROBIN_CMD_ENTRY(logout, "logout from Robin"),
     ROBIN_CMD_ENTRY(help, "print this help"),
     ROBIN_CMD_ENTRY(quit, "terminate the connection with the server"),
     ROBIN_CMD_ENTRY_NULL /* terminator */
@@ -81,27 +85,112 @@ robin_cmd_t robin_cmds[] = {
 
 ROBIN_CMD_FN(register, ctx, args)
 {
-    (void) args;
+    char *email = args, *psw, *end;
+    int ret;
 
-    robin_reply(ctx, "0 register not implemented yet");
+    dbg("register: args=%s", args);
+
+    psw = strchr(args, ' ');
+    if (!psw) {
+        robin_reply(ctx, "-1 no password provided");
+        return ROBIN_CMD_OK;
+    }
+    *(psw++) = '\0';  /* separate email and psw strings */
+
+    /* terminate psw on first space (if any) */
+    end = strchr(psw, ' ');
+    if (end)
+        *end = '\0';
+
+    dbg("register: email=%s psw=%s", email, psw);
+
+    ret = robin_user_add(email, psw);
+    if (ret < 0) {
+        robin_reply(ctx, "-1 could not register the new user into the system");
+        return ROBIN_CMD_ERR;
+    } else if (ret == 1) {
+        robin_reply(ctx, "-1 invalid email/password format");
+        return ROBIN_CMD_OK;
+    } else if (ret == 2) {
+        robin_reply(ctx, "-1 user %s is already registered", email);
+        return ROBIN_CMD_OK;
+    }
+
+    robin_reply(ctx, "0 user registered successfully");
 
     return ROBIN_CMD_OK;
 }
 
 ROBIN_CMD_FN(login, ctx, args)
 {
+    char *email = args, *psw, *end;
+    robin_user_data_t *data;
+
+    dbg("login: args=%s", args);
+
+    if (ctx->logged) {
+        robin_reply(ctx, "-2 already signed-in as %s", ctx->data->email);
+        return ROBIN_CMD_OK;
+    }
+
+    psw = strchr(args, ' ');
+    if (!psw) {
+        robin_reply(ctx, "-1 no password provided");
+        return ROBIN_CMD_OK;
+    }
+    *(psw++) = '\0';  /* separete email and psw strings */
+
+    /* terminate psw on first space (if any) */
+    end = strchr(psw, ' ');
+    if (end)
+        *end = '\0';
+
+    dbg("login: email=%s psw=%s", email, psw);
+
+    switch (robin_user_acquire_data(email, psw, &data)) {
+        case -1:
+            robin_reply(ctx, "-1 could not login the new user to the system");
+            return ROBIN_CMD_ERR;
+
+        case 1:
+            robin_reply(ctx, "-1 user already logged in from another client");
+            return ROBIN_CMD_OK;
+
+        case 2:
+            robin_reply(ctx, "-1 invalid email/password");
+            return ROBIN_CMD_OK;
+
+        case 0:
+            ctx->logged = 1;
+            ctx->data = data;
+            robin_reply(ctx, "0 user logged-in successfully");
+            return ROBIN_CMD_OK;
+
+        default:
+            robin_reply(ctx, "-1 unknown error");
+            return ROBIN_CMD_ERR;
+    }
+}
+
+ROBIN_CMD_FN(logout, ctx, args)
+{
     (void) args;
 
-    if (ctx->logged)
-        robin_reply(ctx, "0 already signed-in");
-    else {
-        ctx->logged = 1;
-        robin_reply(ctx, "0 fake sign-in successfull");
+    dbg("logout:");
+
+    if (!ctx->logged) {
+        robin_reply(ctx, "-2 login is required before logout");
+        return ROBIN_CMD_OK;
     }
+
+    robin_user_release_data(ctx->data);
+    ctx->logged = 0;
+    ctx->data = NULL;
+
+    robin_reply(ctx, "0 logout successfull");
 
     return ROBIN_CMD_OK;
 }
-
 
 ROBIN_CMD_FN(help, ctx, args)
 {
@@ -160,6 +249,11 @@ void robin_ctx_free(robin_ctx_t *ctx)
     if (ctx->buf) {
         dbg("ctx_free: buf=%p", ctx->buf);
         free(ctx->buf);
+    }
+
+    if (ctx->data) {
+        dbg("ctx_free: data=%p", ctx->data);
+        robin_user_release_data(ctx->data);
     }
 
     dbg("ctx_free: ctx=%p", ctx);
