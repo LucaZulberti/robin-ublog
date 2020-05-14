@@ -167,8 +167,10 @@ int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...)
     va_start(args, fmt);
     va_copy(test_args, args);
 
-    reply_len = vsnprintf(NULL, 0, fmt, test_args);
+    reply_len = vsnprintf(NULL, 0, fmt, test_args) + 1;
     va_end(test_args);
+
+    dbg("reply: len=%d", reply_len);
 
     reply = malloc(reply_len * sizeof(char));
     if (!reply) {
@@ -176,13 +178,16 @@ int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...)
         return -1;
     }
 
-    if (vsnprintf(reply, reply_len + 1, fmt, args) < 0) {
+    if (vsnprintf(reply, reply_len, fmt, args) < 0) {
         err("vsnprintf: %s", strerror(errno));
         return -1;
     }
     va_end(args);
 
-    if (socket_sendn(ctx->fd, reply, reply_len) < 0) {
+    dbg("reply: msg=%s", reply);
+
+    /* do not send '\0' in reply */
+    if (socket_sendn(ctx->fd, reply, reply_len - 1) < 0) {
         err("socket_sendn: failed to send data to socket");
         free(reply);
         return -1;
