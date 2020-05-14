@@ -24,6 +24,7 @@
 /*
  * Utility macros
  */
-#define STR(x) #x
+#define _STR(x) #x
+#define STR(x) _STR(x)
 
 #endif /* ROBIN_H */
