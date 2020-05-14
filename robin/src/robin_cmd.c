@@ -109,6 +109,8 @@ ROBIN_CMD_FN(help, ctx, args)
     robin_cmd_t *cmd;
     const int ncmds = sizeof(robin_cmds) / sizeof(robin_cmd_t) - 1;
 
+    dbg("help: ncmds=%d", ncmds);
+
     if (robin_reply(ctx, "%d available commands:", ncmds) < 0)
         return ROBIN_CMD_ERR;
 
@@ -123,6 +125,8 @@ ROBIN_CMD_FN(help, ctx, args)
 ROBIN_CMD_FN(quit, ctx, args)
 {
     (void) args;
+
+    dbg("quit:");
 
     if (robin_reply(ctx, "0 bye bye!") < 0)
         return ROBIN_CMD_ERR;
@@ -153,8 +157,12 @@ robin_ctx_t *robin_ctx_alloc(int log_id, int fd)
 
 void robin_ctx_free(robin_ctx_t *ctx)
 {
-    if (ctx->buf)
+    if (ctx->buf) {
+        dbg("ctx_free: buf=%p", ctx->buf);
         free(ctx->buf);
+    }
+
+    dbg("ctx_free: ctx=%p", ctx);
     free(ctx);
 }
 
