@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "robin.h"
-#include "robin_cmd.h"
+#include "robin_conn.h"
 #include "robin_user.h"
 #include "socket.h"
 
@@ -20,17 +20,17 @@
  * Log shortcut
  */
 
-#define err(fmt, args...)  robin_log_err(ctx->log_id, fmt, ## args)
-#define warn(fmt, args...) robin_log_warn(ctx->log_id, fmt, ## args)
-#define info(fmt, args...) robin_log_info(ctx->log_id, fmt, ## args)
-#define dbg(fmt, args...)  robin_log_dbg(ctx->log_id, fmt, ## args)
+#define err(fmt, args...)  robin_log_err(conn->log_id, fmt, ## args)
+#define warn(fmt, args...) robin_log_warn(conn->log_id, fmt, ## args)
+#define info(fmt, args...) robin_log_info(conn->log_id, fmt, ## args)
+#define dbg(fmt, args...)  robin_log_dbg(conn->log_id, fmt, ## args)
 
 
 /*
  * Local types and macros
  */
 
-struct robin_ctx {
+struct robin_conn {
     int fd; /* socket file descriptor */
 
     /* Robin recvline */
@@ -45,7 +45,8 @@ struct robin_ctx {
     robin_user_data_t *data;
 };
 
-#define ROBIN_CMD_FN(name, ctx, args) robin_cmd_retval_t robin_cmd_##name(robin_ctx_t *ctx, char *args)
+#define ROBIN_CMD_FN(name, conn, args) \
+    robin_conn_cmd_ret_t robin_cmd_##name(struct robin_conn *conn, char *args)
 #define ROBIN_CMD_FN_DECL(name) static ROBIN_CMD_FN(name,,)
 #define ROBIN_CMD_ENTRY(cmd_name, cmd_desc) { \
     .name = #cmd_name,                        \
@@ -70,7 +71,7 @@ ROBIN_CMD_FN_DECL(quit);
  * Exported data
  */
 
-robin_cmd_t robin_cmds[] = {
+robin_conn_cmd_t robin_cmds[] = {
     ROBIN_CMD_ENTRY(register, "register to Robin with e-mail and password"),
     ROBIN_CMD_ENTRY(login, "login to Robin with e-mail and password"),
     ROBIN_CMD_ENTRY(logout, "logout from Robin"),
@@ -83,7 +84,7 @@ robin_cmd_t robin_cmds[] = {
  * Robin function definitions
  */
 
-ROBIN_CMD_FN(register, ctx, args)
+ROBIN_CMD_FN(register, conn, args)
 {
     char *email = args, *psw, *end;
     int ret;
@@ -92,7 +93,7 @@ ROBIN_CMD_FN(register, ctx, args)
 
     psw = strchr(args, ' ');
     if (!psw) {
-        robin_reply(ctx, "-1 no password provided");
+        robin_conn_reply(conn, "-1 no password provided");
         return ROBIN_CMD_OK;
     }
     *(psw++) = '\0';  /* separate email and psw strings */
@@ -106,36 +107,38 @@ ROBIN_CMD_FN(register, ctx, args)
 
     ret = robin_user_add(email, psw);
     if (ret < 0) {
-        robin_reply(ctx, "-1 could not register the new user into the system");
+        robin_conn_reply(conn,
+            "-1 could not register the new user into the system");
         return ROBIN_CMD_ERR;
     } else if (ret == 1) {
-        robin_reply(ctx, "-1 invalid email/password format");
+        robin_conn_reply(conn, "-1 invalid email/password format");
         return ROBIN_CMD_OK;
     } else if (ret == 2) {
-        robin_reply(ctx, "-1 user %s is already registered", email);
+        robin_conn_reply(conn, "-1 user %s is already registered", email);
         return ROBIN_CMD_OK;
     }
 
-    robin_reply(ctx, "0 user registered successfully");
+    robin_conn_reply(conn, "0 user registered successfully");
 
     return ROBIN_CMD_OK;
 }
 
-ROBIN_CMD_FN(login, ctx, args)
+ROBIN_CMD_FN(login, conn, args)
 {
     char *email = args, *psw, *end;
     robin_user_data_t *data;
 
     dbg("login: args=%s", args);
 
-    if (ctx->logged) {
-        robin_reply(ctx, "-2 already signed-in as %s", ctx->data->email);
+    if (conn->logged) {
+        robin_conn_reply(conn, "-2 already signed-in as %s",
+                         conn->data->email);
         return ROBIN_CMD_OK;
     }
 
     psw = strchr(args, ' ');
     if (!psw) {
-        robin_reply(ctx, "-1 no password provided");
+        robin_conn_reply(conn, "-1 no password provided");
         return ROBIN_CMD_OK;
     }
     *(psw++) = '\0';  /* separete email and psw strings */
@@ -149,75 +152,77 @@ ROBIN_CMD_FN(login, ctx, args)
 
     switch (robin_user_acquire_data(email, psw, &data)) {
         case -1:
-            robin_reply(ctx, "-1 could not login the new user to the system");
+            robin_conn_reply(conn,
+                "-1 could not login into the system");
             return ROBIN_CMD_ERR;
 
         case 1:
-            robin_reply(ctx, "-1 user already logged in from another client");
+            robin_conn_reply(conn,
+                "-1 user already logged in from another client");
             return ROBIN_CMD_OK;
 
         case 2:
-            robin_reply(ctx, "-1 invalid email/password");
+            robin_conn_reply(conn, "-1 invalid email/password");
             return ROBIN_CMD_OK;
 
         case 0:
-            ctx->logged = 1;
-            ctx->data = data;
-            robin_reply(ctx, "0 user logged-in successfully");
+            conn->logged = 1;
+            conn->data = data;
+            robin_conn_reply(conn, "0 user logged-in successfully");
             return ROBIN_CMD_OK;
 
         default:
-            robin_reply(ctx, "-1 unknown error");
+            robin_conn_reply(conn, "-1 unknown error");
             return ROBIN_CMD_ERR;
     }
 }
 
-ROBIN_CMD_FN(logout, ctx, args)
+ROBIN_CMD_FN(logout, conn, args)
 {
     (void) args;
 
     dbg("logout:");
 
-    if (!ctx->logged) {
-        robin_reply(ctx, "-2 login is required before logout");
+    if (!conn->logged) {
+        robin_conn_reply(conn, "-2 login is required before logout");
         return ROBIN_CMD_OK;
     }
 
-    robin_user_release_data(ctx->data);
-    ctx->logged = 0;
-    ctx->data = NULL;
+    robin_user_release_data(conn->data);
+    conn->logged = 0;
+    conn->data = NULL;
 
-    robin_reply(ctx, "0 logout successfull");
+    robin_conn_reply(conn, "0 logout successfull");
 
     return ROBIN_CMD_OK;
 }
 
-ROBIN_CMD_FN(help, ctx, args)
+ROBIN_CMD_FN(help, conn, args)
 {
     (void) args;
-    robin_cmd_t *cmd;
-    const int ncmds = sizeof(robin_cmds) / sizeof(robin_cmd_t) - 1;
+    robin_conn_cmd_t *cmd;
+    const int ncmds = sizeof(robin_cmds) / sizeof(robin_conn_cmd_t) - 1;
 
     dbg("help: ncmds=%d", ncmds);
 
-    if (robin_reply(ctx, "%d available commands:", ncmds) < 0)
+    if (robin_conn_reply(conn, "%d available commands:", ncmds) < 0)
         return ROBIN_CMD_ERR;
 
     for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-        if (robin_reply(ctx, "%s\t%s", cmd->name, cmd->desc) < 0)
+        if (robin_conn_reply(conn, "%s\t%s", cmd->name, cmd->desc) < 0)
             return ROBIN_CMD_ERR;
     }
 
     return ROBIN_CMD_OK;
 }
 
-ROBIN_CMD_FN(quit, ctx, args)
+ROBIN_CMD_FN(quit, conn, args)
 {
     (void) args;
 
     dbg("quit:");
 
-    if (robin_reply(ctx, "0 bye bye!") < 0)
+    if (robin_conn_reply(conn, "0 bye bye!") < 0)
         return ROBIN_CMD_ERR;
 
     return ROBIN_CMD_QUIT;
@@ -228,39 +233,39 @@ ROBIN_CMD_FN(quit, ctx, args)
  * Exported functions
  */
 
-robin_ctx_t *robin_ctx_alloc(int log_id, int fd)
+robin_conn_t *robin_conn_alloc(int log_id, int fd)
 {
-    robin_ctx_t *ctx;
+    robin_conn_t *conn;
 
-    ctx = calloc(1, sizeof(robin_ctx_t));
-    if (!ctx) {
+    conn = calloc(1, sizeof(robin_conn_t));
+    if (!conn) {
         err("calloc: %s", strerror(errno));
         return NULL;
     }
 
-    ctx->fd = fd;
-    ctx->log_id = log_id;
+    conn->fd = fd;
+    conn->log_id = log_id;
 
-    return ctx;
+    return conn;
 }
 
-void robin_ctx_free(robin_ctx_t *ctx)
+void robin_conn_free(robin_conn_t *conn)
 {
-    if (ctx->buf) {
-        dbg("ctx_free: buf=%p", ctx->buf);
-        free(ctx->buf);
+    if (conn->buf) {
+        dbg("conn_free: buf=%p", conn->buf);
+        free(conn->buf);
     }
 
-    if (ctx->data) {
-        dbg("ctx_free: data=%p", ctx->data);
-        robin_user_release_data(ctx->data);
+    if (conn->data) {
+        dbg("conn_free: data=%p", conn->data);
+        robin_user_release_data(conn->data);
     }
 
-    dbg("ctx_free: ctx=%p", ctx);
-    free(ctx);
+    dbg("conn_free: conn=%p", conn);
+    free(conn);
 }
 
-int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...)
+int _robin_conn_reply(robin_conn_t *conn, const char *fmt, ...)
 {
     va_list args, test_args;
     char *reply;
@@ -289,7 +294,7 @@ int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...)
     dbg("reply: msg=%s", reply);
 
     /* do not send '\0' in reply */
-    if (socket_sendn(ctx->fd, reply, reply_len - 1) < 0) {
+    if (socket_sendn(conn->fd, reply, reply_len - 1) < 0) {
         err("socket_sendn: failed to send data to socket");
         free(reply);
         return -1;
@@ -299,14 +304,14 @@ int _robin_reply(robin_ctx_t *ctx, const char *fmt, ...)
     return 0;
 }
 
-int robin_recvline(robin_ctx_t *ctx, char *vptr, size_t n)
+int robin_conn_recvline(robin_conn_t *conn, char *vptr, size_t n)
 {
     int nread;
 
-    nread = socket_recvline(&(ctx->buf), &(ctx->len), ctx->fd, vptr, n);
+    nread = socket_recvline(&(conn->buf), &(conn->len), conn->fd, vptr, n);
 
     if (nread > n)
-        ctx->len = 0; /* discard the command in buffer */
+        conn->len = 0; /* discard the command in buffer */
 
     return nread;
 }

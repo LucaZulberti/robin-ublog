@@ -12,7 +12,7 @@
 
 #include "robin.h"
 #include "robin_manager.h"
-#include "robin_cmd.h"
+#include "robin_conn.h"
 #include "socket.h"
 
 
@@ -43,16 +43,16 @@ void robin_manage_connection(int id, int fd)
     const int log_id = ROBIN_LOG_ID_RT_BASE + id;
     int nread, big_cmd_count = 0;
     char buf[ROBIN_CMD_MAX_LEN], *args;
-    robin_cmd_t *cmd;
-    robin_ctx_t *ctx;
+    robin_conn_cmd_t *cmd;
+    robin_conn_t *conn;
 
     /* setup the context for this connection */
-    ctx = robin_ctx_alloc(log_id, fd);
-    if (!ctx)
+    conn = robin_conn_alloc(log_id, fd);
+    if (!conn)
         goto manager_early_quit;
 
     while (1) {
-        nread = robin_recvline(ctx, buf, ROBIN_CMD_MAX_LEN + 1);
+        nread = robin_conn_recvline(conn, buf, ROBIN_CMD_MAX_LEN + 1);
         if (nread < 0) {
             err("failed to receive a line from the client");
             goto manager_quit;
@@ -60,8 +60,8 @@ void robin_manage_connection(int id, int fd)
             warn("client disconnected");
             goto manager_quit;
         } else if (nread > ROBIN_CMD_MAX_LEN) {
-            robin_reply(ctx, "-1 command string exceeds " STR(ROBIN_CMD_MAX_LEN)
-                             " characters: cmd dropped");
+            robin_conn_reply(conn, "-1 command string exceeds "
+                STR(ROBIN_CMD_MAX_LEN) " characters: cmd dropped");
 
             /* close connection with client if it is too annoying */
             if (++big_cmd_count >= ROBIN_MANAGER_BIGCMD_THRESHOLD) {
@@ -93,7 +93,7 @@ void robin_manage_connection(int id, int fd)
             if (!strcmp(buf, cmd->name)) {
                 info("recognized command: %s", buf);
                 /* execute cmd and evaluate the returned value */
-                switch (cmd->fn(ctx, args)) {
+                switch (cmd->fn(conn, args)) {
                     case ROBIN_CMD_OK:
                         break;
 
@@ -107,15 +107,15 @@ void robin_manage_connection(int id, int fd)
         }
 
         if (cmd->name == NULL)
-            if (robin_reply(ctx, "-1 invalid command; type help for the "
-                                 "list of availble commands") < 0) {
+            if (robin_conn_reply(conn, "-1 invalid command; type help for "
+                                 "the list of availble commands") < 0) {
                 err("failed to send invalid command reply");
                 goto manager_quit;
             }
     }
 
 manager_quit:
-    robin_ctx_free(ctx);
+    robin_conn_free(conn);
 manager_early_quit:
     info("connection closed");
     socket_close(fd);
