@@ -94,6 +94,7 @@ ROBIN_CONN_CMD_FN_DECL(help);
 ROBIN_CONN_CMD_FN_DECL(register);
 ROBIN_CONN_CMD_FN_DECL(login);
 ROBIN_CONN_CMD_FN_DECL(logout);
+ROBIN_CONN_CMD_FN_DECL(follow);
 ROBIN_CONN_CMD_FN_DECL(quit);
 
 
@@ -102,13 +103,18 @@ ROBIN_CONN_CMD_FN_DECL(quit);
  */
 
 static robin_conn_cmd_t robin_cmds[] = {
-    ROBIN_CONN_CMD_ENTRY(help, "", "print this help"),
+    ROBIN_CONN_CMD_ENTRY(help, "",
+                         "print this help"),
     ROBIN_CONN_CMD_ENTRY(register, "<email> <password>",
-                         "register to Robin with e-mail and password"),
+                         "register to Robin with email and password"),
     ROBIN_CONN_CMD_ENTRY(login, "<email> <password>",
-                         "login to Robin with e-mail and password"),
-    ROBIN_CONN_CMD_ENTRY(logout, "", "logout from Robin"),
-    ROBIN_CONN_CMD_ENTRY(quit, "", "terminate the connection with the server"),
+                         "login to Robin with email and password"),
+    ROBIN_CONN_CMD_ENTRY(logout, "",
+                         "logout from Robin"),
+    ROBIN_CONN_CMD_ENTRY(follow, "<email>",
+                         "follow the user identified by the email"),
+    ROBIN_CONN_CMD_ENTRY(quit, "",
+                         "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
 };
 
@@ -349,6 +355,49 @@ ROBIN_CONN_CMD_FN(logout, conn)
     rc_reply(conn, "0 logout successfull");
 
     return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(follow, conn)
+{
+    char *email;
+
+    dbg("%s", conn->argv[0]);
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    email = conn->argv[1];
+
+    dbg("%s: email=%s", conn->argv[0], email);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    switch (robin_user_follow(conn->uid, email)) {
+        case -1:
+            rc_reply(conn, "-1 could not follow the user");
+            return ROBIN_CMD_ERR;
+
+        case 0:
+            rc_reply(conn, "0 user %s followed", email);
+            return ROBIN_CMD_OK;
+
+        case 1:
+            rc_reply(conn, "-1 user %s does not exist", email);
+            return ROBIN_CMD_OK;
+
+        case 2:
+            rc_reply(conn, "0 user %s already followed", email);
+            return ROBIN_CMD_OK;
+
+        default:
+            rc_reply(conn, "-1 unknown error");
+            return ROBIN_CMD_ERR;
+    }
 }
 
 ROBIN_CONN_CMD_FN(quit, conn)
