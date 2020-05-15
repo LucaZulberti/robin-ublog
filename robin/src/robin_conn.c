@@ -375,84 +375,148 @@ ROBIN_CONN_CMD_FN(logout, conn)
 
 ROBIN_CONN_CMD_FN(follow, conn)
 {
-    char *email;
+    char **replies;
+    int n, nleft, err;
 
-    dbg("%s", conn->argv[0]);
+    n = conn->argc - 1;
 
-    if (conn->argc != 2) {
+    dbg("%s: n_emails=%d", conn->argv[0], n);
+
+    if (conn->argc < 2) {
         rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
-
-    email = conn->argv[1];
-
-    dbg("%s: email=%s", conn->argv[0], email);
 
     if (!conn->logged) {
         rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    switch (robin_user_follow(conn->uid, email)) {
-        case -1:
-            rc_reply(conn, "-1 could not follow the user");
-            return ROBIN_CMD_ERR;
-
-        case 0:
-            rc_reply(conn, "0 user %s followed", email);
-            return ROBIN_CMD_OK;
-
-        case 1:
-            rc_reply(conn, "-1 user %s does not exist", email);
-            return ROBIN_CMD_OK;
-
-        case 2:
-            rc_reply(conn, "0 user %s already followed", email);
-            return ROBIN_CMD_OK;
-
-        default:
-            rc_reply(conn, "-1 unknown error");
-            return ROBIN_CMD_ERR;
+    replies = malloc(n * sizeof(char *));
+    if (!replies) {
+        err("malloc: %s", strerror(errno));
+        return ROBIN_CMD_ERR;
     }
+
+    err = 0;
+    nleft = n;
+    while (nleft && !err) {
+        const char *email = conn->argv[n - nleft + 1];
+
+        switch (robin_user_follow(conn->uid, email)) {
+            case -1:
+                replies[n - nleft] = "-1 could not follow the user";
+                err = 1;
+                break;
+
+            case 0:
+                replies[n - nleft] = "0 user followed";
+                break;
+
+            case 1:
+                replies[n - nleft] = "-1 user does not exist";
+                break;
+
+            case 2:
+                replies[n - nleft] = "-1 user already followed";
+                break;
+
+            default:
+                replies[n - nleft] = "-1 unknown error";
+                err = 1;
+                break;
+        }
+
+        nleft--;
+    }
+
+    if (nleft == n) {
+        rc_reply(conn, "-1 could not follow any user");
+    } else {
+        rc_reply(conn, "%d users tried to follow", n - nleft);
+        for (int i = 0; i < n - nleft; i++) {
+            const char *email = conn->argv[i + 1];
+            rc_reply(conn, "%s %s", email, replies[i]);
+        }
+    }
+
+    free(replies);
+
+    if (!nleft)
+        return ROBIN_CMD_OK;
+    else
+        return ROBIN_CMD_ERR;
 }
 
 ROBIN_CONN_CMD_FN(unfollow, conn)
 {
-    char *email;
+    char **replies;
+    int n, nleft, err;
 
-    dbg("%s", conn->argv[0]);
+    n = conn->argc - 1;
 
-    if (conn->argc != 2) {
+    dbg("%s: n_emails=%d", conn->argv[0], n);
+
+    if (conn->argc < 2) {
         rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
-
-    email = conn->argv[1];
-
-    dbg("%s: email=%s", conn->argv[0], email);
 
     if (!conn->logged) {
         rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    switch (robin_user_unfollow(conn->uid, email)) {
-        case -1:
-            rc_reply(conn, "-1 could not unfollow the user");
-            return ROBIN_CMD_ERR;
-
-        case 0:
-            rc_reply(conn, "0 user %s unfollowed", email);
-            return ROBIN_CMD_OK;
-
-        case 1:
-            rc_reply(conn, "-1 user %s is not followed", email);
-            return ROBIN_CMD_OK;
-
-        default:
-            rc_reply(conn, "-1 unknown error");
-            return ROBIN_CMD_ERR;
+    replies = malloc(n * sizeof(char *));
+    if (!replies) {
+        err("malloc: %s", strerror(errno));
+        return ROBIN_CMD_ERR;
     }
+
+    err = 0;
+    nleft = n;
+    while (nleft && !err) {
+        const char *email = conn->argv[n - nleft + 1];
+
+        switch (robin_user_unfollow(conn->uid, email)) {
+            case -1:
+                replies[n - nleft] = "-1 could not unfollow the user";
+                err = 1;
+                break;
+
+            case 0:
+                replies[n - nleft] = "0 user unfollowed";
+                break;
+
+            case 1:
+                replies[n - nleft] = "-1 user is not followed";
+                break;
+
+            default:
+                replies[n - nleft] = "-1 unknown error";
+                err = 1;
+                break;
+        }
+
+        nleft--;
+    }
+
+    if (nleft == n) {
+        rc_reply(conn, "-1 could not unfollow any user");
+    } else {
+        rc_reply(conn, "%d users tried to unfollow", n - nleft);
+        for (int i = 0; i < n - nleft; i++) {
+            const char *email = conn->argv[i + 1];
+            rc_reply(conn, "%s %s", email, replies[i]);
+        }
+    }
+
+    free(replies);
+
+    if (!nleft)
+        return ROBIN_CMD_OK;
+    else
+        return ROBIN_CMD_ERR;
 }
 
 ROBIN_CONN_CMD_FN(following, conn)
