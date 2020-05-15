@@ -208,6 +208,21 @@ const char *robin_user_email_get(int uid)
     return ret;
 }
 
+int robin_user_following_get(int uid, cclist_t **following)
+{
+    int ret = 0;
+
+    pthread_mutex_lock(&users_mutex);
+
+    if (robin_user_is_acquired(&users[uid]))
+        *following = (cclist_t *) users[uid].data->following;
+    else
+        ret = -1;
+
+    pthread_mutex_unlock(&users_mutex);
+    return ret;
+}
+
 int robin_user_follow(int uid, const char *email)
 {
     robin_user_data_t *me, *found = NULL;

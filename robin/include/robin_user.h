@@ -49,6 +49,16 @@ int robin_user_add(const char *email, const char *psw);
 const char *robin_user_email_get(int uid);
 
 /**
+ * @brief Get a const list of followed users
+ *
+ * @param uid       the user id
+ * @param following the list (void *ptr -> const char *email)
+ * @return int      0 on success
+ *                 -1 on error
+ */
+int robin_user_following_get(int uid, cclist_t **following);
+
+/**
  * @brief Make the user follow the one identified by email
  *
  * @param me    user id that wants to follow <email>
