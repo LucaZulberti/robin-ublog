@@ -60,4 +60,15 @@ const char *robin_user_email_get(int uid);
  */
 int robin_user_follow(int uid, const char *email);
 
+/**
+ * @brief Make the user follow the one identified by email
+ *
+ * @param me    user id that wants to follow <email>
+ * @param email email of the user that will be followed
+ * @return int  0 on success
+ *             -1 on error
+ *              1 on user identified by email is not followed
+ */
+int robin_user_unfollow(int uid, const char *email);
+
 #endif /* ROBIN_USER_H */

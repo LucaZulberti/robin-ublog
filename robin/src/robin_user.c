@@ -268,3 +268,52 @@ int robin_user_follow(int uid, const char *email)
 
     return 0;
 }
+
+
+int robin_user_unfollow(int uid, const char *email)
+{
+    robin_user_data_t *me;
+    robin_user_list_t *el, *prev;
+
+    /* exclusive access for retrieve data pointers */
+    pthread_mutex_lock(&users_mutex);
+
+    if (!robin_user_is_acquired(&users[uid])) {
+        err("follow: user %d (%s) is not acquired", uid,
+            users[uid].data->email);
+        return -1;
+    }
+
+    me = users[uid].data;
+    pthread_mutex_unlock(&users_mutex);
+
+    /*
+     * Users cannot be deleted at run time, exclusive access
+     * is not needed anymore.
+     */
+
+    /* search for followed user */
+    prev = NULL;
+    el = me->following;
+    while (el != NULL) {
+        if (!strcmp(el->user_data->email, email))
+            break;
+
+        prev = el;
+        el = el->next;
+    }
+
+    if (!el) {
+        warn("follow: user %s is not followed", email);
+        return 1;
+    }
+
+    if (prev)
+        prev->next = el->next;
+    else
+        me->following = el->next;
+
+    free(el);
+
+    return 0;
+}
