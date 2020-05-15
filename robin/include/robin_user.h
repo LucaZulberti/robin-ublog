@@ -8,37 +8,25 @@
 #ifndef ROBIN_USER_H
 #define ROBIN_USER_H
 
-#define ROBIN_USER_EMAIL_LEN 64
-#define ROBIN_USER_PSW_LEN   64
-
-typedef struct robin_user_data {
-    /* Login information */
-    char email[ROBIN_USER_EMAIL_LEN];
-    char psw[ROBIN_USER_PSW_LEN];  /* hashed password */
-
-    /* Data release information */
-    int uid;
-} robin_user_data_t;
-
 /**
- * @brief Acquire (exclusive access) the user data if email:psw are valid
+ * @brief Acquire (exclusive access) the user if email:psw are valid
  *
  * @param email user email
  * @param psw   user password (hashed)
- * @param data  return argument, the pointer will be set to allocated user data
+ * @param user  return argument, the uid
  * @return int  0 on success
  *             -1 on error
  *              1 user data already acquired
  *              2 invalid email or password
  */
-int robin_user_acquire_data(const char *email, const char *psw, robin_user_data_t **);
+int robin_user_acquire(const char *email, const char *psw, int *user);
 
 /**
- * @brief Release (exclusive access) the user data
+ * @brief Release (exclusive access) the user
  *
- * @param data user data
+ * @param user user to release
  */
-void robin_user_release_data(robin_user_data_t *data);
+void robin_user_release(int uid);
 
 /**
  * @brief Add the user identified by email:psw to the system
@@ -51,5 +39,13 @@ void robin_user_release_data(robin_user_data_t *data);
  *              2 on email already used
  */
 int robin_user_add(const char *email, const char *psw);
+
+/**
+ * @brief Get the email of the user
+ *
+ * @param user         the user id
+ * @return const char* its email
+ */
+const char *robin_user_email_get(int uid);
 
 #endif /* ROBIN_USER_H */

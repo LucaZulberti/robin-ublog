@@ -56,7 +56,7 @@ typedef struct robin_conn {
 
     /* Robin User */
     int logged;
-    robin_user_data_t *data;
+    int uid;
 } robin_conn_t;
 
 typedef struct robin_conn_cmd {
@@ -138,11 +138,6 @@ static void rc_free(robin_conn_t *conn)
     if (conn->buf) {
         dbg("conn_free: buf=%p", conn->buf);
         free(conn->buf);
-    }
-
-    if (conn->data) {
-        dbg("conn_free: data=%p", conn->data);
-        robin_user_release_data(conn->data);
     }
 
     dbg("conn_free: conn=%p", conn);
@@ -294,7 +289,7 @@ ROBIN_CONN_CMD_FN(register, conn)
 ROBIN_CONN_CMD_FN(login, conn)
 {
     char *email, *psw;
-    robin_user_data_t *data;
+    int uid;
 
     dbg("%s", conn->argv[0]);
 
@@ -309,14 +304,21 @@ ROBIN_CONN_CMD_FN(login, conn)
     dbg("%s: email=%s psw=%s", conn->argv[0], email, psw);
 
     if (conn->logged) {
-        rc_reply(conn, "-2 already signed-in as %s", conn->data->email);
+        rc_reply(conn, "-2 already signed-in as %s",
+                       robin_user_email_get(conn->uid));
         return ROBIN_CMD_OK;
     }
 
-    switch (robin_user_acquire_data(email, psw, &data)) {
+    switch (robin_user_acquire(email, psw, &uid)) {
         case -1:
             rc_reply(conn, "-1 could not login into the system");
             return ROBIN_CMD_ERR;
+
+        case 0:
+            conn->logged = 1;
+            conn->uid = uid;
+            rc_reply(conn, "0 user logged-in successfully");
+            return ROBIN_CMD_OK;
 
         case 1:
             rc_reply(conn, "-1 user already logged in from another client");
@@ -324,12 +326,6 @@ ROBIN_CONN_CMD_FN(login, conn)
 
         case 2:
             rc_reply(conn, "-1 invalid email/password");
-            return ROBIN_CMD_OK;
-
-        case 0:
-            conn->logged = 1;
-            conn->data = data;
-            rc_reply(conn, "0 user logged-in successfully");
             return ROBIN_CMD_OK;
 
         default:
@@ -347,9 +343,8 @@ ROBIN_CONN_CMD_FN(logout, conn)
         return ROBIN_CMD_OK;
     }
 
-    robin_user_release_data(conn->data);
+    robin_user_release(conn->uid);
     conn->logged = 0;
-    conn->data = NULL;
 
     rc_reply(conn, "0 logout successfull");
 
