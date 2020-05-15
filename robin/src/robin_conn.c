@@ -57,6 +57,7 @@ typedef struct robin_conn {
 
 typedef struct robin_conn_cmd {
     char *name;
+    char *usage;
     char *desc;
     robin_conn_cmd_ret_t (*fn)(robin_conn_t *conn, char *args);
 } robin_conn_cmd_t;
@@ -64,12 +65,18 @@ typedef struct robin_conn_cmd {
 #define ROBIN_CONN_CMD_FN(name, conn, args) \
     robin_conn_cmd_ret_t rc_cmd_##name(struct robin_conn *conn, char *args)
 #define ROBIN_CONN_CMD_FN_DECL(name) static ROBIN_CONN_CMD_FN(name,,)
-#define ROBIN_CONN_CMD_ENTRY(cmd_name, cmd_desc) { \
-    .name = #cmd_name,                        \
-    .desc = cmd_desc,                         \
-    .fn = rc_cmd_##cmd_name                \
+#define ROBIN_CONN_CMD_ENTRY(cmd_name, cmd_usage, cmd_desc) { \
+    .name = #cmd_name,                                        \
+    .usage = cmd_usage,                                       \
+    .desc = cmd_desc,                                         \
+    .fn = rc_cmd_##cmd_name                                   \
 }
-#define ROBIN_CONN_CMD_ENTRY_NULL { .name = NULL, .desc = NULL, .fn = NULL }
+#define ROBIN_CONN_CMD_ENTRY_NULL { \
+    .name = NULL,                   \
+    .usage = NULL,                  \
+    .desc = NULL,                   \
+    .fn = NULL                      \
+}
 
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...);
 #define rc_reply(conn, fmt, args...) _rc_reply(conn, fmt "\n", ## args)
@@ -91,11 +98,13 @@ ROBIN_CONN_CMD_FN_DECL(quit);
  */
 
 static robin_conn_cmd_t robin_cmds[] = {
-    ROBIN_CONN_CMD_ENTRY(register, "register to Robin with e-mail and password"),
-    ROBIN_CONN_CMD_ENTRY(login, "login to Robin with e-mail and password"),
-    ROBIN_CONN_CMD_ENTRY(logout, "logout from Robin"),
-    ROBIN_CONN_CMD_ENTRY(help, "print this help"),
-    ROBIN_CONN_CMD_ENTRY(quit, "terminate the connection with the server"),
+    ROBIN_CONN_CMD_ENTRY(register, "<email> <password>",
+                         "register to Robin with e-mail and password"),
+    ROBIN_CONN_CMD_ENTRY(login, "<email> <password>",
+                         "login to Robin with e-mail and password"),
+    ROBIN_CONN_CMD_ENTRY(logout, "", "logout from Robin"),
+    ROBIN_CONN_CMD_ENTRY(help, "", "print this help"),
+    ROBIN_CONN_CMD_ENTRY(quit, "", "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
 };
 
@@ -225,7 +234,7 @@ ROBIN_CONN_CMD_FN(help, conn, args)
         return ROBIN_CMD_ERR;
 
     for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-        if (rc_reply(conn, "%s\t%s", cmd->name, cmd->desc) < 0)
+        if (rc_reply(conn, "%s %s\t%s", cmd->name, cmd->usage, cmd->desc) < 0)
             return ROBIN_CMD_ERR;
     }
 
