@@ -197,7 +197,15 @@ int robin_user_add(const char *email, const char *psw)
 
 const char *robin_user_email_get(int uid)
 {
-    return users[uid].data->email;
+    const char *ret = NULL;
+
+    pthread_mutex_lock(&users_mutex);
+
+    if (robin_user_is_acquired(&users[uid]))
+        ret = users[uid].data->email;
+
+    pthread_mutex_unlock(&users_mutex);
+    return ret;
 }
 
 int robin_user_follow(int uid, const char *email)
