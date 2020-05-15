@@ -48,4 +48,16 @@ int robin_user_add(const char *email, const char *psw);
  */
 const char *robin_user_email_get(int uid);
 
+/**
+ * @brief Make the user follow the one identified by email
+ *
+ * @param me    user id that wants to follow <email>
+ * @param email email of the user that will be followed
+ * @return int  0 on success
+ *             -1 on error
+ *              1 on user identified by email does not exist
+ *              2 on user identified by email already followed
+ */
+int robin_user_follow(int uid, const char *email);
+
 #endif /* ROBIN_USER_H */

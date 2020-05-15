@@ -33,10 +33,21 @@
 #define ROBIN_USER_EMAIL_LEN 64
 #define ROBIN_USER_PSW_LEN   64
 
+struct robin_user_data;
+
+typedef struct robin_user_list {
+    struct robin_user_data *user_data;
+
+    struct robin_user_list *next;
+} robin_user_list_t;
+
 typedef struct robin_user_data {
     /* Login information */
     char email[ROBIN_USER_EMAIL_LEN];
     char psw[ROBIN_USER_PSW_LEN];  /* hashed password */
+
+    /* Social data */
+    robin_user_list_t *following;
 } robin_user_data_t;
 
 typedef struct robin_user {
@@ -90,6 +101,7 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
 
     strcpy(data->email, email);
     strcpy(data->psw, psw);
+    data->following = NULL;
     dbg("add: data allocated and initialized");
 
     _users = realloc(users, (users_len + 1) * sizeof(robin_user_t));
@@ -196,3 +208,63 @@ const char *robin_user_email_get(int uid)
     return users[uid].data->email;
 }
 
+int robin_user_follow(int uid, const char *email)
+{
+    robin_user_data_t *me, *followed = NULL;
+    robin_user_list_t *el;
+
+    /* exclusive access for retrieve data pointers */
+    pthread_mutex_lock(&users_mutex);
+
+    if (!robin_user_is_acquired(&users[uid])) {
+        err("follow: user %d (%s) is not acquired", uid,
+            users[uid].data->email);
+        return -1;
+    }
+
+    me = users[uid].data;
+
+    for (int i = 0; i < users_len; i++) {
+        /* an user cannot follow himself */
+        if (i == uid)
+            continue;
+
+        if (!strcmp(email, users[i].data->email)) {
+            followed = users[i].data;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&users_mutex);
+
+    /*
+     * Users cannot be deleted at run time, exclusive access
+     * is not needed anymore.
+     */
+
+    if (!followed) {
+        warn("follow: user %s does not exist", email);
+        return 1;
+    }
+
+    /* search for already followed user */
+    for (el = me->following; el != NULL; el = el->next)
+        if (!strcmp(followed->email, el->user_data->email))
+            break;
+
+    if (el) {
+        warn("follow: user %s is already followed", email);
+        return 2;
+    }
+
+    el = malloc(sizeof(robin_user_list_t));
+    if (!el) {
+        err("malloc: %s", strerror(errno));
+        return -1;
+    }
+
+    el->user_data = followed;
+    el->next = me->following;
+    me->following = el;
+
+    return 0;
+}
