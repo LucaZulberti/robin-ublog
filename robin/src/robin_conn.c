@@ -228,8 +228,12 @@ static int rc_cmdparse(robin_conn_t *conn, char *cmd)
         }
         argv = tmp;
 
-        if (argc > 0)
-            *(ptr++) = '\0';      /* terminate previous arg */
+        if (argc > 0)         /* if not the first argument */
+            *(ptr++) = '\0';  /* terminate the previous argument */
+
+        while (*ptr == ' ')   /* skip consecutive whitespaces */
+            ptr++;
+
         argv[argc++] = ptr;  /* store new arg */
 
         ptr = strchr(ptr, ' ');
