@@ -250,6 +250,11 @@ ROBIN_CONN_CMD_FN(help, conn)
 
     dbg("%s: ncmds=%d", conn->argv[0], ncmds);
 
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
     if (rc_reply(conn, "%d available commands:", ncmds) < 0)
         return ROBIN_CMD_ERR;
 
@@ -347,6 +352,11 @@ ROBIN_CONN_CMD_FN(logout, conn)
 {
     dbg("%s", conn->argv[0]);
 
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
     if (!conn->logged) {
         rc_reply(conn, "-2 login is required before logout");
         return ROBIN_CMD_OK;
@@ -403,7 +413,6 @@ ROBIN_CONN_CMD_FN(follow, conn)
     }
 }
 
-
 ROBIN_CONN_CMD_FN(unfollow, conn)
 {
     char *email;
@@ -446,6 +455,11 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
 ROBIN_CONN_CMD_FN(quit, conn)
 {
     dbg("%s", conn->argv[0]);
+
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
 
     if (rc_reply(conn, "0 bye bye!") < 0)
         return ROBIN_CMD_ERR;
