@@ -95,6 +95,7 @@ ROBIN_CONN_CMD_FN_DECL(register);
 ROBIN_CONN_CMD_FN_DECL(login);
 ROBIN_CONN_CMD_FN_DECL(logout);
 ROBIN_CONN_CMD_FN_DECL(follow);
+ROBIN_CONN_CMD_FN_DECL(unfollow);
 ROBIN_CONN_CMD_FN_DECL(quit);
 
 
@@ -113,6 +114,8 @@ static robin_conn_cmd_t robin_cmds[] = {
                          "logout from Robin"),
     ROBIN_CONN_CMD_ENTRY(follow, "<email>",
                          "follow the user identified by the email"),
+    ROBIN_CONN_CMD_ENTRY(unfollow, "<email>",
+                         "unfollow the user identified by the email"),
     ROBIN_CONN_CMD_ENTRY(quit, "",
                          "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
@@ -392,6 +395,46 @@ ROBIN_CONN_CMD_FN(follow, conn)
 
         case 2:
             rc_reply(conn, "0 user %s already followed", email);
+            return ROBIN_CMD_OK;
+
+        default:
+            rc_reply(conn, "-1 unknown error");
+            return ROBIN_CMD_ERR;
+    }
+}
+
+
+ROBIN_CONN_CMD_FN(unfollow, conn)
+{
+    char *email;
+
+    dbg("%s", conn->argv[0]);
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    email = conn->argv[1];
+
+    dbg("%s: email=%s", conn->argv[0], email);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    switch (robin_user_unfollow(conn->uid, email)) {
+        case -1:
+            rc_reply(conn, "-1 could not unfollow the user");
+            return ROBIN_CMD_ERR;
+
+        case 0:
+            rc_reply(conn, "0 user %s unfollowed", email);
+            return ROBIN_CMD_OK;
+
+        case 1:
+            rc_reply(conn, "-1 user %s is not followed", email);
             return ROBIN_CMD_OK;
 
         default:
