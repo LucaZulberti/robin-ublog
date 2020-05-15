@@ -33,21 +33,13 @@
 #define ROBIN_USER_EMAIL_LEN 64
 #define ROBIN_USER_PSW_LEN   64
 
-struct robin_user_data;
-
-typedef struct robin_user_list {
-    struct robin_user_data *user_data;
-
-    struct robin_user_list *next;
-} robin_user_list_t;
-
 typedef struct robin_user_data {
     /* Login information */
     char email[ROBIN_USER_EMAIL_LEN];
     char psw[ROBIN_USER_PSW_LEN];  /* hashed password */
 
     /* Social data */
-    robin_user_list_t *following;
+    clist_t *following;
 } robin_user_data_t;
 
 typedef struct robin_user {
@@ -210,8 +202,8 @@ const char *robin_user_email_get(int uid)
 
 int robin_user_follow(int uid, const char *email)
 {
-    robin_user_data_t *me, *followed = NULL;
-    robin_user_list_t *el;
+    robin_user_data_t *me, *found = NULL;
+    clist_t *el;
 
     /* exclusive access for retrieve data pointers */
     pthread_mutex_lock(&users_mutex);
@@ -230,7 +222,7 @@ int robin_user_follow(int uid, const char *email)
             continue;
 
         if (!strcmp(email, users[i].data->email)) {
-            followed = users[i].data;
+            found = users[i].data;
             break;
         }
     }
@@ -241,28 +233,34 @@ int robin_user_follow(int uid, const char *email)
      * is not needed anymore.
      */
 
-    if (!followed) {
+    if (!found) {
         warn("follow: user %s does not exist", email);
         return 1;
     }
 
     /* search for already followed user */
-    for (el = me->following; el != NULL; el = el->next)
-        if (!strcmp(followed->email, el->user_data->email))
+    el = me->following;
+    while (el != NULL) {
+        const char *el_mail = (const char *) el->ptr;
+
+        if (!strcmp(el_mail, email))
             break;
 
+        el = el->next;
+    }
+
     if (el) {
-        warn("follow: user %s is already followed", email);
+        warn("follow: user %s is already followed", found->email);
         return 2;
     }
 
-    el = malloc(sizeof(robin_user_list_t));
+    el = malloc(sizeof(list_t));
     if (!el) {
         err("malloc: %s", strerror(errno));
         return -1;
     }
 
-    el->user_data = followed;
+    el->ptr = found->email;
     el->next = me->following;
     me->following = el;
 
@@ -273,7 +271,7 @@ int robin_user_follow(int uid, const char *email)
 int robin_user_unfollow(int uid, const char *email)
 {
     robin_user_data_t *me;
-    robin_user_list_t *el, *prev;
+    clist_t *el, *prev;
 
     /* exclusive access for retrieve data pointers */
     pthread_mutex_lock(&users_mutex);
@@ -296,7 +294,9 @@ int robin_user_unfollow(int uid, const char *email)
     prev = NULL;
     el = me->following;
     while (el != NULL) {
-        if (!strcmp(el->user_data->email, email))
+        const char *el_mail = (const char *) el->ptr;
+
+        if (!strcmp(el_mail, email))
             break;
 
         prev = el;

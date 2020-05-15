@@ -38,4 +38,24 @@
 #define _STR(x) #x
 #define STR(x) _STR(x)
 
+
+/*
+ * Common types
+ */
+
+typedef struct list {
+    struct list *next;
+    void *ptr;
+} list_t;
+
+typedef struct clist {
+    struct clist *next;
+    const void *ptr;
+} clist_t;
+
+typedef const struct cclist {
+    const struct cclist *next;
+    const void *ptr;
+} cclist_t;
+
 #endif /* ROBIN_H */
