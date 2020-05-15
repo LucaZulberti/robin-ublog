@@ -284,7 +284,7 @@ ROBIN_CONN_CMD_FN(register, conn)
     email = conn->argv[1];
     psw = conn->argv[2];
 
-    dbg("%s: email=%s psw=%s", argv[0], email, psw);
+    dbg("%s: email=%s psw=%s", conn->argv[0], email, psw);
 
     ret = robin_user_add(email, psw);
     if (ret < 0) {
