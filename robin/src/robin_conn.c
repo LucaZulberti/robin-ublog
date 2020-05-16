@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <pthread.h>
+
 #include "robin.h"
 #include "robin_conn.h"
 #include "robin_user.h"
@@ -48,6 +50,7 @@ typedef struct robin_conn {
 
     /* Robin reply */
     char *reply;
+    char **replies;
 
     /* Robin Log */
     int log_id;
@@ -131,15 +134,26 @@ static robin_conn_cmd_t robin_cmds[] = {
  * Local functions
  */
 
+static void realloc_safe(void **dest, void *ptr, size_t size)
+{
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+    *dest = realloc(ptr, size);
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+}
+
 static robin_conn_t *rc_alloc(int log_id, int fd)
 {
     robin_conn_t *conn;
+
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
     conn = calloc(1, sizeof(robin_conn_t));
     if (!conn) {
         err("calloc: %s", strerror(errno));
         return NULL;
     }
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     conn->fd = fd;
     conn->log_id = log_id;
@@ -149,6 +163,8 @@ static robin_conn_t *rc_alloc(int log_id, int fd)
 
 static void rc_free(robin_conn_t *conn)
 {
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
     if (conn->buf) {
         dbg("conn_free: buf=%p", conn->buf);
         free(conn->buf);
@@ -159,6 +175,11 @@ static void rc_free(robin_conn_t *conn)
         free(conn->reply);
     }
 
+    if (conn->replies) {
+        dbg("conn_free: replies=%p", conn->replies);
+        free(conn->replies);
+    }
+
     if (conn->argv) {
         dbg("conn_free: argv=%p", conn->argv);
         free(conn->argv);
@@ -166,6 +187,8 @@ static void rc_free(robin_conn_t *conn)
 
     dbg("conn_free: conn=%p", conn);
     free(conn);
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 }
 
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
@@ -181,7 +204,7 @@ static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
 
     dbg("reply: len=%d", reply_len);
 
-    conn->reply = realloc(conn->reply, reply_len * sizeof(char));
+    realloc_safe((void **)&conn->reply, conn->reply, reply_len * sizeof(char));
     if (!conn->reply) {
         err("malloc: %s", strerror(errno));
         return -1;
@@ -218,24 +241,18 @@ static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
 
 static int rc_cmdparse(robin_conn_t *conn, char *cmd)
 {
-    char *ptr, **tmp, **argv;
+    char *ptr;
     int argc;
 
     argc = 0;
-    argv = conn->argv;
 
     ptr = cmd;
     do {
-        tmp = realloc(argv, (argc + 1) * sizeof(char *));
-        if (!tmp) {
+        realloc_safe((void **)&conn->argv, conn->argv, (argc + 1) * sizeof(char *));
+        if (!conn->argv) {
             err("realloc: %s", strerror(errno));
-            if (argv) {
-                free(argv);
-                conn->argv = NULL;
-            }
             return -1;
         }
-        argv = tmp;
 
         if (argc > 0)         /* if not the first argument */
             *(ptr++) = '\0';  /* terminate the previous argument */
@@ -243,12 +260,11 @@ static int rc_cmdparse(robin_conn_t *conn, char *cmd)
         while (*ptr == ' ')   /* skip consecutive whitespaces */
             ptr++;
 
-        argv[argc++] = ptr;  /* store new arg */
+        conn->argv[argc++] = ptr;  /* store new arg */
 
         ptr = strchr(ptr, ' ');
     } while (ptr != NULL);
 
-    conn->argv = argv;
     conn->argc = argc;
 
     return 0;
@@ -388,7 +404,6 @@ ROBIN_CONN_CMD_FN(logout, conn)
 
 ROBIN_CONN_CMD_FN(follow, conn)
 {
-    char **replies;
     int n, nleft, err;
 
     n = conn->argc - 1;
@@ -405,8 +420,8 @@ ROBIN_CONN_CMD_FN(follow, conn)
         return ROBIN_CMD_OK;
     }
 
-    replies = malloc(n * sizeof(char *));
-    if (!replies) {
+    realloc_safe((void **)&conn->replies, conn->replies, n * sizeof(char *));
+    if (!conn->replies) {
         err("malloc: %s", strerror(errno));
         return ROBIN_CMD_ERR;
     }
@@ -418,24 +433,24 @@ ROBIN_CONN_CMD_FN(follow, conn)
 
         switch (robin_user_follow(conn->uid, email)) {
             case -1:
-                replies[n - nleft] = "-1 could not follow the user";
+                conn->replies[n - nleft] = "-1 could not follow the user";
                 err = 1;
                 break;
 
             case 0:
-                replies[n - nleft] = "0 user followed";
+                conn->replies[n - nleft] = "0 user followed";
                 break;
 
             case 1:
-                replies[n - nleft] = "-1 user does not exist";
+                conn->replies[n - nleft] = "-1 user does not exist";
                 break;
 
             case 2:
-                replies[n - nleft] = "-1 user already followed";
+                conn->replies[n - nleft] = "-1 user already followed";
                 break;
 
             default:
-                replies[n - nleft] = "-1 unknown error";
+                conn->replies[n - nleft] = "-1 unknown error";
                 err = 1;
                 break;
         }
@@ -449,11 +464,9 @@ ROBIN_CONN_CMD_FN(follow, conn)
         rc_reply(conn, "%d users tried to follow", n - nleft);
         for (int i = 0; i < n - nleft; i++) {
             const char *email = conn->argv[i + 1];
-            rc_reply(conn, "%s %s", email, replies[i]);
+            rc_reply(conn, "%s %s", email, conn->replies[i]);
         }
     }
-
-    free(replies);
 
     if (!nleft)
         return ROBIN_CMD_OK;
@@ -463,7 +476,6 @@ ROBIN_CONN_CMD_FN(follow, conn)
 
 ROBIN_CONN_CMD_FN(unfollow, conn)
 {
-    char **replies;
     int n, nleft, err;
 
     n = conn->argc - 1;
@@ -480,8 +492,8 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
         return ROBIN_CMD_OK;
     }
 
-    replies = malloc(n * sizeof(char *));
-    if (!replies) {
+    realloc_safe((void **)&conn->replies, conn->replies, n * sizeof(char *));
+    if (!conn->replies) {
         err("malloc: %s", strerror(errno));
         return ROBIN_CMD_ERR;
     }
@@ -493,20 +505,20 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
 
         switch (robin_user_unfollow(conn->uid, email)) {
             case -1:
-                replies[n - nleft] = "-1 could not unfollow the user";
+                conn->replies[n - nleft] = "-1 could not unfollow the user";
                 err = 1;
                 break;
 
             case 0:
-                replies[n - nleft] = "0 user unfollowed";
+                conn->replies[n - nleft] = "0 user unfollowed";
                 break;
 
             case 1:
-                replies[n - nleft] = "-1 user is not followed";
+                conn->replies[n - nleft] = "-1 user is not followed";
                 break;
 
             default:
-                replies[n - nleft] = "-1 unknown error";
+                conn->replies[n - nleft] = "-1 unknown error";
                 err = 1;
                 break;
         }
@@ -520,11 +532,9 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
         rc_reply(conn, "%d users tried to unfollow", n - nleft);
         for (int i = 0; i < n - nleft; i++) {
             const char *email = conn->argv[i + 1];
-            rc_reply(conn, "%s %s", email, replies[i]);
+            rc_reply(conn, "%s %s", email, conn->replies[i]);
         }
     }
-
-    free(replies);
 
     if (!nleft)
         return ROBIN_CMD_OK;
