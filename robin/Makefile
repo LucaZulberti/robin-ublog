@@ -2,6 +2,16 @@ TARGETS = robin_server
 #TARGETS = robin_server robin_client
 #LIBS	= robin_api
 
+ifeq ($(DEBUG), valgrind)
+CFLAGS = -O0 -g
+else ifeq ($(DEBUG), log)
+CFLAGS = -O2 -DDEBUG=1
+else
+CFLAGS = -O2
+endif
+
+CFLAGS += -Wall
+
 robin_server_SOURCES = robin_server.c robin_thread.c robin_conn.c \
 					   robin_user.c robin_log.c socket.c
 robin_server_SYSLIBS = pthread
