@@ -45,7 +45,7 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
     va_start(args, fmt);
     va_copy(test_args, args);
 
-    msg_len = vsnprintf(NULL, 0, fmt, test_args);
+    msg_len = vsnprintf(NULL, 0, fmt, test_args) + 1;
     va_end(test_args);
 
     alloc_msg = malloc(msg_len * sizeof(char));
@@ -54,7 +54,7 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
     else
         msg = "<couldn't allocate memory for log message>";
 
-    vsnprintf(msg, msg_len + 1, fmt, args);
+    vsnprintf(msg, msg_len, fmt, args);
     va_end(args);
 
     if (id < ROBIN_LOG_ID_RT_BASE) {
