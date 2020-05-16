@@ -9,13 +9,7 @@
 #ifndef SOCKET_H
 #define SOCKET_H
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <stddef.h>
 
 int socket_recvline(char **buf, size_t *len, int fd, char *vptr, size_t n);
 int socket_recvn(int s, void *vptr, size_t n);

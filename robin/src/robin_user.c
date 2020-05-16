@@ -7,9 +7,7 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#include <errno.h>
 #include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 
 #include "robin.h"

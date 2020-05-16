@@ -8,6 +8,8 @@
 #ifndef ROBIN_USER_H
 #define ROBIN_USER_H
 
+#include "robin.h"
+
 /**
  * @brief Acquire (exclusive access) the user if email:psw are valid
  *

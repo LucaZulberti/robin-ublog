@@ -14,6 +14,9 @@
  * Common include
  */
 
+#include <errno.h>
+#include <string.h>
+
 #include "robin_log.h"
 
 
