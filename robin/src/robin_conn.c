@@ -32,6 +32,7 @@
  * Local types and macros
  */
 
+#define ROBIN_CONN_MAX 64
 #define ROBIN_CONN_BIGCMD_THRESHOLD 5
 #define ROBIN_CONN_CMD_MAX_LEN 300
 
@@ -128,6 +129,9 @@ static robin_conn_cmd_t robin_cmds[] = {
                          "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
 };
+
+/* for gracefully termination */
+static robin_conn_t *robin_conns[ROBIN_CONN_MAX];
 
 
 /*
@@ -627,6 +631,9 @@ void robin_conn_manage(int id, int fd)
     if (!conn)
         goto manager_early_quit;
 
+    /* access is exclusive due to unique id */
+    robin_conns[id] = conn;
+
     while (1) {
         nread = rc_recvline(conn, buf, ROBIN_CONN_CMD_MAX_LEN + 1);
         if (nread < 0) {
@@ -696,7 +703,20 @@ manager_quit:
     if (conn->logged)
         robin_user_release(conn->uid);
     rc_free(conn);
+    robin_conns[id] = NULL;
 manager_early_quit:
     info("connection closed");
     socket_close(fd);
+}
+
+void robin_conn_terminate(int id)
+{
+    robin_conn_t *conn = robin_conns[id];
+
+    if (conn) {
+        if (conn->logged)
+            robin_user_release(conn->uid);
+        socket_close(conn->fd);
+        rc_free(conn);
+    }
 }

@@ -17,4 +17,11 @@
  */
 void robin_conn_manage(int id, int fd);
 
+/**
+ * @brief Terminate the Robin Connection gracefully
+ *
+ * @param id Connection ID (Robin Thread ID)
+ */
+void robin_conn_terminate(int id);
+
 #endif /* ROBIN_CONN_H */
