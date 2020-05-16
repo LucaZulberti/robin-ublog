@@ -46,6 +46,9 @@ typedef struct robin_conn {
     char *buf;
     size_t len;
 
+    /* Robin reply */
+    char *reply;
+
     /* Robin Log */
     int log_id;
 
@@ -151,6 +154,16 @@ static void rc_free(robin_conn_t *conn)
         free(conn->buf);
     }
 
+    if (conn->reply) {
+        dbg("conn_free: reply=%p", conn->reply);
+        free(conn->reply);
+    }
+
+    if (conn->argv) {
+        dbg("conn_free: argv=%p", conn->argv);
+        free(conn->argv);
+    }
+
     dbg("conn_free: conn=%p", conn);
     free(conn);
 }
@@ -158,7 +171,6 @@ static void rc_free(robin_conn_t *conn)
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
 {
     va_list args, test_args;
-    char *reply;
     int reply_len;
 
     va_start(args, fmt);
@@ -169,28 +181,26 @@ static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
 
     dbg("reply: len=%d", reply_len);
 
-    reply = malloc(reply_len * sizeof(char));
-    if (!reply) {
+    conn->reply = realloc(conn->reply, reply_len * sizeof(char));
+    if (!conn->reply) {
         err("malloc: %s", strerror(errno));
         return -1;
     }
 
-    if (vsnprintf(reply, reply_len, fmt, args) < 0) {
+    if (vsnprintf(conn->reply, reply_len, fmt, args) < 0) {
         err("vsnprintf: %s", strerror(errno));
         return -1;
     }
     va_end(args);
 
-    dbg("reply: msg=%s", reply);
+    dbg("reply: msg=%s", conn->reply);
 
     /* do not send '\0' in reply */
-    if (socket_sendn(conn->fd, reply, reply_len - 1) < 0) {
+    if (socket_sendn(conn->fd, conn->reply, reply_len - 1) < 0) {
         err("socket_sendn: failed to send data to socket");
-        free(reply);
         return -1;
     }
 
-    free(reply);
     return 0;
 }
 
