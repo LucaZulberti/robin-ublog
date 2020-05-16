@@ -15,7 +15,7 @@
 #include <unistd.h>
 
 #include "robin.h"
-#include "socket.h"
+#include "lib/socket.h"
 
 #define SOCKET_ALLOCATION_CHUNK_LEN  64
 #define SOCKET_ALLOCATION_MAX_CHUNKS 1024

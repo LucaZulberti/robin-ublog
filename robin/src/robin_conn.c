@@ -15,7 +15,7 @@
 #include "robin.h"
 #include "robin_conn.h"
 #include "robin_user.h"
-#include "socket.h"
+#include "lib/socket.h"
 
 
 /*
