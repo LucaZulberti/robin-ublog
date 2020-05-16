@@ -10,11 +10,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <pthread.h>
-
 #include "robin.h"
 #include "robin_conn.h"
 #include "robin_user.h"
+#include "lib/alloc_safe.h"
 #include "lib/socket.h"
 
 
@@ -138,26 +137,15 @@ static robin_conn_t *robin_conns[ROBIN_CONN_MAX];
  * Local functions
  */
 
-static void realloc_safe(void **dest, void *ptr, size_t size)
-{
-    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-    *dest = realloc(ptr, size);
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-}
-
 static robin_conn_t *rc_alloc(int log_id, int fd)
 {
     robin_conn_t *conn;
 
-    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-    conn = calloc(1, sizeof(robin_conn_t));
+    calloc_safe((void **)&conn, 1, sizeof(robin_conn_t));
     if (!conn) {
         err("calloc: %s", strerror(errno));
         return NULL;
     }
-
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     conn->fd = fd;
     conn->log_id = log_id;
@@ -167,32 +155,28 @@ static robin_conn_t *rc_alloc(int log_id, int fd)
 
 static void rc_free(robin_conn_t *conn)
 {
-    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
     if (conn->buf) {
         dbg("conn_free: buf=%p", conn->buf);
-        free(conn->buf);
+        free_safe((void **)&conn->buf, NULL);
     }
 
     if (conn->reply) {
         dbg("conn_free: reply=%p", conn->reply);
-        free(conn->reply);
+        free_safe((void **)&conn->reply, NULL);
     }
 
     if (conn->replies) {
         dbg("conn_free: replies=%p", conn->replies);
-        free(conn->replies);
+        free_safe((void **)&conn->replies, NULL);
     }
 
     if (conn->argv) {
         dbg("conn_free: argv=%p", conn->argv);
-        free(conn->argv);
+        free_safe((void **)&conn->argv, NULL);
     }
 
     dbg("conn_free: conn=%p", conn);
-    free(conn);
-
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    free_safe((void **)&conn, NULL);
 }
 
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)

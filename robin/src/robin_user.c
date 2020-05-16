@@ -7,11 +7,9 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#include <stdlib.h>
-#include <pthread.h>
-
 #include "robin.h"
 #include "robin_user.h"
+#include "lib/alloc_safe.h"
 
 
 /*
@@ -38,6 +36,7 @@ typedef struct robin_user_data {
 
     /* Social data */
     clist_t *following;
+    clist_t *_new_follow;
 } robin_user_data_t;
 
 typedef struct robin_user {
@@ -61,8 +60,6 @@ static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int robin_user_add_unsafe(const char * email, const char * psw)
 {
-    robin_user_t *_users;
-    robin_user_data_t *data;
     int i, uid;
 
     dbg("add: email=%s psw=%s", email, psw);
@@ -83,27 +80,25 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
     }
 
     dbg("add: user not existing, allocating data...");
-    data = malloc(sizeof(robin_user_data_t));
-    if (!data) {
+
+    realloc_safe((void **)&users, users, (users_len + 1) * sizeof(robin_user_t));
+    if (!users) {
+        err("realloc: %s", strerror(errno));
+        return -1;
+    }
+    uid = users_len++;
+
+    malloc_safe((void **)&users[uid].data, sizeof(robin_user_data_t));
+    if (!users[uid].data) {
         err("malloc: %s", strerror(errno));
         return -1;
     }
 
-    strcpy(data->email, email);
-    strcpy(data->psw, psw);
-    data->following = NULL;
+    strcpy(users[uid].data->email, email);
+    strcpy(users[uid].data->psw, psw);
+    users[uid].data->following = NULL;
     dbg("add: data allocated and initialized");
 
-    _users = realloc(users, (users_len + 1) * sizeof(robin_user_t));
-    if (!_users) {
-        err("realloc: %s", strerror(errno));
-        return -1;
-    }
-    users = _users;
-
-    uid = users_len++;
-
-    users[uid].data = data;
     pthread_mutex_init(&users[uid].acquired, NULL);
 
     dbg("add: new user uid=%d", uid);
@@ -145,6 +140,9 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
                 cur = next;
             }
         }
+
+        if (data->_new_follow != data->following)
+            free(data->_new_follow);
 
         dbg("user_data_free: data=%p", data);
         free(data);
@@ -296,15 +294,15 @@ int robin_user_follow(int uid, const char *email)
         return 2;
     }
 
-    el = malloc(sizeof(list_t));
-    if (!el) {
+    malloc_safe((void **)&me->_new_follow, sizeof(list_t));
+    if (!me->_new_follow) {
         err("malloc: %s", strerror(errno));
         return -1;
     }
 
-    el->ptr = found->email;
-    el->next = me->following;
-    me->following = el;
+    me->_new_follow->ptr = found->email;
+    me->_new_follow->next = me->following;
+    me->following = me->_new_follow;
 
     return 0;
 }
@@ -351,11 +349,9 @@ int robin_user_unfollow(int uid, const char *email)
     }
 
     if (prev)
-        prev->next = el->next;
+        free_safe((void **)&prev->next, el->next);
     else
-        me->following = el->next;
-
-    free(el);
+        free_safe((void **)&me->following, el->next);
 
     return 0;
 }

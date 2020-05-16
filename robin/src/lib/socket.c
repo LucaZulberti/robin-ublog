@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #include "robin.h"
+#include "lib/alloc_safe.h"
 #include "lib/socket.h"
 
 #define SOCKET_ALLOCATION_CHUNK_LEN  64
@@ -102,7 +103,7 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
         *len = 0;  /* buffer is not allocated */
 
     while (1) {
-        *buf = realloc(*buf, get_allocation_size(
+        realloc_safe((void **)buf, *buf, get_allocation_size(
                                 *len + SOCKET_ALLOCATION_CHUNK_LEN));
         if (!*buf) {
             err("realloc: %s", strerror(errno));
