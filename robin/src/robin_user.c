@@ -361,6 +361,10 @@ void robin_user_free_all(void)
     pthread_mutex_lock(&users_mutex);
 
     for (int i = 0; i < users_len; i++) {
+        /* skip acquired resources */
+        if (robin_user_is_acquired(&users[i]))
+            continue;
+
         pthread_mutex_lock(&users[i].acquired);
         robin_user_data_free_unsafe(users[i].data);
         pthread_mutex_unlock(&users[i].acquired);
