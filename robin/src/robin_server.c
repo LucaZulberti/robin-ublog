@@ -86,7 +86,7 @@ int main(int argc, char **argv)
         err("%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    memcpy(h_name, argv[1], h_name_len);
+    strcpy(h_name, argv[1]);
 
     /* parse port */
     port = atoi(argv[2]);
