@@ -83,4 +83,12 @@ int robin_user_follow(int uid, const char *email);
  */
 int robin_user_unfollow(int uid, const char *email);
 
+/**
+ * @brief Free up the resources to terminate gracefully
+ *
+ * The resources of acquired users are not freed, you must release any
+ * acquired user by yourself before calling this function.
+ */
+void robin_user_free_all(void);
+
 #endif /* ROBIN_USER_H */

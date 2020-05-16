@@ -130,6 +130,27 @@ static int robin_user_is_acquired(robin_user_t *user)
     }
 }
 
+static void robin_user_data_free_unsafe(robin_user_data_t *data)
+{
+    clist_t *cur, *next;
+
+    if (data) {
+        if (data->following) {
+            cur = data->following;
+
+            while (cur != NULL) {
+                next = cur->next;
+                dbg("user_data_free: following=%p", cur);
+                free(cur);
+                cur = next;
+            }
+        }
+
+        dbg("user_data_free: data=%p", data);
+        free(data);
+    }
+}
+
 
 /*
  * Exported functions
@@ -337,4 +358,20 @@ int robin_user_unfollow(int uid, const char *email)
     free(el);
 
     return 0;
+}
+
+void robin_user_free_all(void)
+{
+    pthread_mutex_lock(&users_mutex);
+
+    for (int i = 0; i < users_len; i++) {
+        pthread_mutex_lock(&users[i].acquired);
+        robin_user_data_free_unsafe(users[i].data);
+        pthread_mutex_unlock(&users[i].acquired);
+    }
+
+    dbg("user_free_all: users=%p", users);
+    free(users);
+
+    pthread_mutex_unlock(&users_mutex);
 }
