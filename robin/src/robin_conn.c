@@ -683,6 +683,8 @@ void robin_conn_manage(int id, int fd)
     }
 
 manager_quit:
+    if (conn->logged)
+        robin_user_release(conn->uid);
     rc_free(conn);
 manager_early_quit:
     info("connection closed");
