@@ -7,9 +7,7 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#include <errno.h>
 #include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 
 #include "robin.h"
@@ -29,6 +27,18 @@
 /*
  * Local types and macros
  */
+
+#define ROBIN_USER_EMAIL_LEN 64
+#define ROBIN_USER_PSW_LEN   64
+
+typedef struct robin_user_data {
+    /* Login information */
+    char email[ROBIN_USER_EMAIL_LEN];
+    char psw[ROBIN_USER_PSW_LEN];  /* hashed password */
+
+    /* Social data */
+    clist_t *following;
+} robin_user_data_t;
 
 typedef struct robin_user {
     robin_user_data_t *data; /* user data */
@@ -51,9 +61,9 @@ static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int robin_user_add_unsafe(const char * email, const char * psw)
 {
-    robin_user_t *_users, *new_user;
+    robin_user_t *_users;
     robin_user_data_t *data;
-    int i;
+    int i, uid;
 
     dbg("add: email=%s psw=%s", email, psw);
 
@@ -81,6 +91,7 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
 
     strcpy(data->email, email);
     strcpy(data->psw, psw);
+    data->following = NULL;
     dbg("add: data allocated and initialized");
 
     _users = realloc(users, (users_len + 1) * sizeof(robin_user_t));
@@ -90,16 +101,54 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
     }
     users = _users;
 
-    new_user = &users[users_len];
-    new_user->data = data;
-    new_user->data->uid = users_len++;
-    pthread_mutex_init(&new_user->acquired, NULL);
+    uid = users_len++;
 
-    dbg("add: new user uid=%d", new_user->data->uid);
+    users[uid].data = data;
+    pthread_mutex_init(&users[uid].acquired, NULL);
+
+    dbg("add: new user uid=%d", uid);
 
     /* add new users in users.txt (TODO) */
 
     return 0;
+}
+
+static int robin_user_is_acquired(robin_user_t *user)
+{
+    int ret;
+
+    ret = pthread_mutex_trylock(&user->acquired);
+    dbg("is_acquired: trylock: ret=%d", ret);
+    if (ret == 0) {
+        pthread_mutex_unlock(&user->acquired);
+        return 0;
+    } else if (ret == EBUSY) {
+        return 1;
+    } else {
+        err("pthread_mutex_trylock: ret=%d", ret);
+        return -1;
+    }
+}
+
+static void robin_user_data_free_unsafe(robin_user_data_t *data)
+{
+    clist_t *cur, *next;
+
+    if (data) {
+        if (data->following) {
+            cur = data->following;
+
+            while (cur != NULL) {
+                next = cur->next;
+                dbg("user_data_free: following=%p", cur);
+                free(cur);
+                cur = next;
+            }
+        }
+
+        dbg("user_data_free: data=%p", data);
+        free(data);
+    }
 }
 
 
@@ -107,7 +156,7 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
  * Exported functions
  */
 
-int robin_user_acquire_data(const char *email, const char *psw, robin_user_data_t **data)
+int robin_user_acquire(const char *email, const char *psw, int *uid)
 {
     int ret = 0;
 
@@ -124,7 +173,7 @@ int robin_user_acquire_data(const char *email, const char *psw, robin_user_data_
 
         ret = pthread_mutex_trylock(&users[i].acquired);
         if (ret == 0) {
-            *data = users[i].data;
+            *uid = i;
             break;
         } else if (ret == EBUSY) {
             warn("user data already acquired by someone else");
@@ -143,10 +192,13 @@ int robin_user_acquire_data(const char *email, const char *psw, robin_user_data_
     return ret;
 }
 
-void robin_user_release_data(robin_user_data_t *data)
+void robin_user_release(int uid)
 {
     pthread_mutex_lock(&users_mutex);
-    pthread_mutex_unlock(&users[data->uid].acquired);
+
+    if (robin_user_is_acquired(&users[uid]) > 0)
+        pthread_mutex_unlock(&users[uid].acquired);
+
     pthread_mutex_unlock(&users_mutex);
 }
 
@@ -160,4 +212,166 @@ int robin_user_add(const char *email, const char *psw)
     pthread_mutex_unlock(&users_mutex);
 
     return ret;
+}
+
+const char *robin_user_email_get(int uid)
+{
+    const char *ret = NULL;
+
+    pthread_mutex_lock(&users_mutex);
+
+    if (robin_user_is_acquired(&users[uid]))
+        ret = users[uid].data->email;
+
+    pthread_mutex_unlock(&users_mutex);
+    return ret;
+}
+
+int robin_user_following_get(int uid, cclist_t **following)
+{
+    int ret = 0;
+
+    pthread_mutex_lock(&users_mutex);
+
+    if (robin_user_is_acquired(&users[uid]))
+        *following = (cclist_t *) users[uid].data->following;
+    else
+        ret = -1;
+
+    pthread_mutex_unlock(&users_mutex);
+    return ret;
+}
+
+int robin_user_follow(int uid, const char *email)
+{
+    robin_user_data_t *me, *found = NULL;
+    clist_t *el;
+
+    /* exclusive access for retrieve data pointers */
+    pthread_mutex_lock(&users_mutex);
+
+    if (!robin_user_is_acquired(&users[uid])) {
+        err("follow: user %d (%s) is not acquired", uid,
+            users[uid].data->email);
+        return -1;
+    }
+
+    me = users[uid].data;
+
+    for (int i = 0; i < users_len; i++) {
+        /* an user cannot follow himself */
+        if (i == uid)
+            continue;
+
+        if (!strcmp(email, users[i].data->email)) {
+            found = users[i].data;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&users_mutex);
+
+    /*
+     * Users cannot be deleted at run time, exclusive access
+     * is not needed anymore.
+     */
+
+    if (!found) {
+        warn("follow: user %s does not exist", email);
+        return 1;
+    }
+
+    /* search for already followed user */
+    el = me->following;
+    while (el != NULL) {
+        const char *el_mail = (const char *) el->ptr;
+
+        if (!strcmp(el_mail, email))
+            break;
+
+        el = el->next;
+    }
+
+    if (el) {
+        warn("follow: user %s is already followed", found->email);
+        return 2;
+    }
+
+    el = malloc(sizeof(list_t));
+    if (!el) {
+        err("malloc: %s", strerror(errno));
+        return -1;
+    }
+
+    el->ptr = found->email;
+    el->next = me->following;
+    me->following = el;
+
+    return 0;
+}
+
+
+int robin_user_unfollow(int uid, const char *email)
+{
+    robin_user_data_t *me;
+    clist_t *el, *prev;
+
+    /* exclusive access for retrieve data pointers */
+    pthread_mutex_lock(&users_mutex);
+
+    if (!robin_user_is_acquired(&users[uid])) {
+        err("follow: user %d (%s) is not acquired", uid,
+            users[uid].data->email);
+        return -1;
+    }
+
+    me = users[uid].data;
+    pthread_mutex_unlock(&users_mutex);
+
+    /*
+     * Users cannot be deleted at run time, exclusive access
+     * is not needed anymore.
+     */
+
+    /* search for followed user */
+    prev = NULL;
+    el = me->following;
+    while (el != NULL) {
+        const char *el_mail = (const char *) el->ptr;
+
+        if (!strcmp(el_mail, email))
+            break;
+
+        prev = el;
+        el = el->next;
+    }
+
+    if (!el) {
+        warn("follow: user %s is not followed", email);
+        return 1;
+    }
+
+    if (prev)
+        prev->next = el->next;
+    else
+        me->following = el->next;
+
+    free(el);
+
+    return 0;
+}
+
+void robin_user_free_all(void)
+{
+    pthread_mutex_lock(&users_mutex);
+
+    for (int i = 0; i < users_len; i++) {
+        pthread_mutex_lock(&users[i].acquired);
+        robin_user_data_free_unsafe(users[i].data);
+        pthread_mutex_unlock(&users[i].acquired);
+    }
+
+    dbg("user_free_all: users=%p", users);
+    free(users);
+
+    pthread_mutex_unlock(&users_mutex);
 }

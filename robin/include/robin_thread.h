@@ -25,4 +25,9 @@ int robin_thread_pool_init(void);
  */
 void robin_thread_pool_dispatch(int fd);
 
+/**
+ * @brief Terminate all the Robin Threads gracefully
+ */
+void robin_thread_pool_free(void);
+
 #endif /* ROBIN_THREAD_H */

@@ -9,10 +9,13 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "robin.h"
 #include "robin_thread.h"
+#include "robin_user.h"
 #include "socket.h"
 
 
@@ -24,6 +27,34 @@
 #define warn(fmt, args...) robin_log_warn(ROBIN_LOG_ID_MAIN, fmt, ## args)
 #define info(fmt, args...) robin_log_info(ROBIN_LOG_ID_MAIN, fmt, ## args)
 #define dbg(fmt, args...)  robin_log_dbg(ROBIN_LOG_ID_MAIN, fmt, ## args)
+
+
+/*
+ * Global data
+ */
+
+static char *h_name;
+
+/*
+ * Signal handlers
+ */
+
+void sigint_handler(int signum)
+{
+    (void) signum;
+
+    dbg("SIGINT: robin_thread_pool_free");
+    robin_thread_pool_free();
+    dbg("SIGINT: robin_user_free_all");
+    robin_user_free_all();
+
+    if (h_name) {
+        dbg("SIGINT: free: h_name=%p", h_name);
+        free(h_name);
+    }
+
+    exit(EXIT_FAILURE);
+}
 
 
 /*
@@ -62,12 +93,14 @@ static void usage(void)
 int main(int argc, char **argv)
 {
     int port;
-    char *h_name;
     size_t h_name_len;
     int server_fd, newclient_fd;
     int ret;
 
     welcome();
+
+    /* register signal handlers */
+    signal(SIGINT, sigint_handler);
 
     /*
      * Argument parsing
@@ -85,7 +118,7 @@ int main(int argc, char **argv)
         err("%s", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    memcpy(h_name, argv[1], h_name_len);
+    strcpy(h_name, argv[1]);
 
     /* parse port */
     port = atoi(argv[2]);

@@ -1,18 +1,27 @@
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
+/*
+ * socket.c
+ *
+ * List of functions to manage Linux sockets.
+ *
+ * Luca Zulberti <l.zulberti@studenti.unipi.it>
+ */
+
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/types.h>
+#include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "robin.h"
 #include "socket.h"
 
-#define SOCKET_ALLOCATION_CHUNK_LEN 64
-#define SOCKET_MAX_BUF_LEN          1024 * SOCKET_ALLOCATION_CHUNK_LEN
+#define SOCKET_ALLOCATION_CHUNK_LEN  64
+#define SOCKET_ALLOCATION_MAX_CHUNKS 1024
+
+#define SOCKET_MAX_BUF_LEN \
+    (SOCKET_ALLOCATION_MAX_CHUNKS * SOCKET_ALLOCATION_CHUNK_LEN)
 
 
 /*
