@@ -69,6 +69,13 @@ static int rt_init(robin_thread_t *rt, int id)
     return 0;
 }
 
+static void rt_cleanup(void *arg)
+{
+    robin_thread_t *me = (robin_thread_t *) arg;
+
+    robin_conn_terminate(me->id);
+}
+
 static inline void rt_free_list_push_unsafe(robin_thread_t *rt)
 {
     rt->next = rt_free_list;
@@ -106,6 +113,9 @@ static void *rt_loop(void *ctx)
     robin_thread_t *me = (robin_thread_t *) ctx;
     const int rt_log_id = ROBIN_LOG_ID_RT_BASE + me->id;
 
+    /* setup cleanup function */
+    pthread_cleanup_push(rt_cleanup, me);
+
     /* Robin Thread loop */
     while (1) {
         robin_log_info(rt_log_id, "ready", me->id);
@@ -122,6 +132,9 @@ static void *rt_loop(void *ctx)
         /* push this RT in the free list */
         rt_free_list_push(me);
     }
+
+    /* do not execute clean-up, this should not be reached */
+    pthread_cleanup_pop(0);
 
     pthread_exit(NULL);
 }
@@ -178,4 +191,16 @@ void robin_thread_pool_dispatch(int fd)
 
     /* wake up the Robin Thread */
     sem_post(&rt->busy);
+}
+
+void robin_thread_pool_free(void)
+{
+    for (int i = 0; i < ROBIN_THREAD_POOL_RT_NUM; i++) {
+        dbg("cancel: tid=%d, t=%p", i, rt_pool[i].thread);
+        pthread_cancel(rt_pool[i].thread);
+        pthread_join(rt_pool[i].thread, NULL);
+    }
+
+    dbg("free: rt_pool=%p", rt_pool);
+    free(rt_pool);
 }
