@@ -36,7 +36,7 @@ typedef struct robin_user_data {
 
     /* Social data */
     clist_t *following;
-    clist_t *_new_follow;
+    clist_t *_new_follow;   /* used for heap consistency */
 } robin_user_data_t;
 
 typedef struct robin_user {
@@ -97,6 +97,7 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
     strcpy(users[uid].data->email, email);
     strcpy(users[uid].data->psw, psw);
     users[uid].data->following = NULL;
+    users[uid].data->_new_follow = NULL;
     dbg("add: data allocated and initialized");
 
     pthread_mutex_init(&users[uid].acquired, NULL);
@@ -141,8 +142,10 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
             }
         }
 
-        if (data->_new_follow != data->following)
+        if (data->_new_follow && data->_new_follow != data->following) {
+            dbg("user_data_free: _new_follow=%p", data->_new_follow)
             free(data->_new_follow);
+        }
 
         dbg("user_data_free: data=%p", data);
         free(data);
