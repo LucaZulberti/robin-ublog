@@ -167,11 +167,12 @@ int main(int argc, char **argv)
         if (ret < 0) {
             err("failed to accept client connection");
             /* waiting for another client */
-            break;
+            continue;
         }
 
         robin_thread_pool_dispatch(newclient_fd);
     }
 
-    exit(EXIT_SUCCESS);
+    /* this should not be reached */
+    exit(EXIT_FAILURE);
 }
