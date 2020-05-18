@@ -53,7 +53,7 @@ static void sigint_handler(int signum)
         free(h_name);
     }
 
-    exit(EXIT_FAILURE);
+    _exit(EXIT_SUCCESS);
 }
 
 
