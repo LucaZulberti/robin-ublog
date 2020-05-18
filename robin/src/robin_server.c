@@ -39,7 +39,7 @@ static char *h_name;
  * Signal handlers
  */
 
-void sigint_handler(int signum)
+static void sigint_handler(int signum)
 {
     (void) signum;
 
@@ -92,6 +92,7 @@ static void usage(void)
 
 int main(int argc, char **argv)
 {
+	struct sigaction act;
     int port;
     size_t h_name_len;
     int server_fd, newclient_fd;
@@ -100,7 +101,13 @@ int main(int argc, char **argv)
     welcome();
 
     /* register signal handlers */
-    signal(SIGINT, sigint_handler);
+    act.sa_flags = 0;
+    act.sa_handler = sigint_handler;
+    sigemptyset(&act.sa_mask);
+    if (sigaction(SIGINT, &act, NULL) < 0) {
+        err("sigaction: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
     /*
      * Argument parsing
