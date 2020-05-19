@@ -101,6 +101,7 @@ ROBIN_CONN_CMD_FN_DECL(logout);
 ROBIN_CONN_CMD_FN_DECL(follow);
 ROBIN_CONN_CMD_FN_DECL(unfollow);
 ROBIN_CONN_CMD_FN_DECL(following);
+ROBIN_CONN_CMD_FN_DECL(followers);
 ROBIN_CONN_CMD_FN_DECL(quit);
 
 
@@ -123,6 +124,8 @@ static robin_conn_cmd_t robin_cmds[] = {
                          "unfollow the user identified by the email"),
     ROBIN_CONN_CMD_ENTRY(following, "",
                          "list following users"),
+    ROBIN_CONN_CMD_ENTRY(followers, "",
+                         "list followers users"),
     ROBIN_CONN_CMD_ENTRY(quit, "",
                          "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
@@ -556,6 +559,37 @@ ROBIN_CONN_CMD_FN(following, conn)
         rc_reply(conn, "%s", following[i]);
 
     free(following);
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(followers, conn)
+{
+    char **followers;
+    size_t len;
+
+    dbg("%s", conn->argv[0]);
+
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (robin_user_followers_get(conn->uid, &followers, &len) < 0) {
+        rc_reply(conn, "-1 could not get the list of followers users");
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "%d users", len);
+    for (int i = 0; i < len; i++)
+        rc_reply(conn, "%s", followers[i]);
+
+    free(followers);
 
     return ROBIN_CMD_OK;
 }
