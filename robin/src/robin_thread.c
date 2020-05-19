@@ -46,16 +46,17 @@ typedef struct robin_thread {
     int fd;            /* associated socket file descriptor */
 
     /* Robin Thread state */
-    rt_state_t state;
+    rt_state_t      state;
+    pthread_cond_t  state_cond;
     pthread_mutex_t state_mutex;
-    pthread_cond_t state_cond;
 
     struct robin_thread *next; /* next available Robin Thread if not busy */
 } robin_thread_t;
 
 static robin_thread_t *rt_pool;
+
 static robin_thread_t *rt_free_list = NULL;
-static pthread_cond_t rt_free_list_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t  rt_free_list_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t rt_free_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
