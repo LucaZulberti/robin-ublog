@@ -531,8 +531,8 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
 
 ROBIN_CONN_CMD_FN(following, conn)
 {
-    cclist_t *following, *tmp;
-    int n;
+    char **following;
+    size_t len;
 
     dbg("%s", conn->argv[0]);
 
@@ -546,27 +546,16 @@ ROBIN_CONN_CMD_FN(following, conn)
         return ROBIN_CMD_OK;
     }
 
-    if (robin_user_following_get(conn->uid, &following) < 0) {
+    if (robin_user_following_get(conn->uid, &following, &len) < 0) {
         rc_reply(conn, "-1 could not get the list of following users");
         return ROBIN_CMD_ERR;
     }
 
-    /* calculate number of following users */
-    n = 0;
-    tmp = following;
-    while (tmp != NULL) {
-        n++;
-        tmp = tmp->next;
-    }
+    rc_reply(conn, "%d users", len);
+    for (int i = 0; i < len; i++)
+        rc_reply(conn, "%s", following[i]);
 
-    rc_reply(conn, "%d users", n);
-
-    tmp = following;
-    while (tmp != NULL) {
-        rc_reply(conn, "%s", (const char *) tmp->ptr);
-
-        tmp = tmp->next;
-    }
+    free(following);
 
     return ROBIN_CMD_OK;
 }
