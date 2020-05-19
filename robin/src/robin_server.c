@@ -30,30 +30,13 @@
 
 
 /*
- * Global data
- */
-
-static char *h_name;
-
-/*
  * Signal handlers
  */
 
-static void sigint_handler(int signum)
+volatile static sig_atomic_t signal_caught;
+static void sig_handler(int sig)
 {
-    (void) signum;
-
-    dbg("SIGINT: robin_thread_pool_free");
-    robin_thread_pool_free();
-    dbg("SIGINT: robin_user_free_all");
-    robin_user_free_all();
-
-    if (h_name) {
-        dbg("SIGINT: free: h_name=%p", h_name);
-        free(h_name);
-    }
-
-    _exit(EXIT_SUCCESS);
+    signal_caught = sig;
 }
 
 
@@ -93,6 +76,7 @@ static void usage(void)
 int main(int argc, char **argv)
 {
 	struct sigaction act;
+    char *h_name;
     int port;
     size_t h_name_len;
     int server_fd, newclient_fd;
@@ -102,7 +86,7 @@ int main(int argc, char **argv)
 
     /* register signal handlers */
     act.sa_flags = 0;
-    act.sa_handler = sigint_handler;
+    act.sa_handler = sig_handler;
     sigemptyset(&act.sa_mask);
     if (sigaction(SIGINT, &act, NULL) < 0) {
         err("sigaction: %s", strerror(errno));
@@ -165,6 +149,10 @@ int main(int argc, char **argv)
     while (1) {
         ret = socket_accept_connection(server_fd, &newclient_fd);
         if (ret < 0) {
+            /* signal caught, terminate the server on SIGINT */
+            if (errno == EINTR && signal_caught == SIGINT)
+                break;
+
             err("failed to accept client connection");
             /* waiting for another client */
             continue;
@@ -173,6 +161,15 @@ int main(int argc, char **argv)
         robin_thread_pool_dispatch(newclient_fd);
     }
 
-    /* this should not be reached */
-    exit(EXIT_FAILURE);
+    dbg("robin_thread_pool_free");
+    robin_thread_pool_free();
+    dbg("robin_user_free_all");
+    robin_user_free_all();
+
+    dbg("socket_close")
+    socket_close(server_fd);
+    dbg("free: h_name=%p", h_name);
+    free(h_name);
+
+    exit(EXIT_SUCCESS);
 }
