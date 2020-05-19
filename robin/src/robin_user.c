@@ -39,7 +39,7 @@ typedef struct robin_user_data {
 
     /* Social data */
     clist_t *following;
-
+    size_t   following_len;
 } robin_user_data_t;
 
 typedef struct robin_user {
@@ -100,6 +100,7 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
     strcpy(users[uid].data->email, email);
     strcpy(users[uid].data->psw, psw);
     users[uid].data->following = NULL;
+    users[uid].data->following_len = 0;
     dbg("add: data allocated and initialized");
 
     pthread_mutex_init(&users[uid].acquired, NULL);
@@ -225,19 +226,39 @@ const char *robin_user_email_get(int uid)
     return ret;
 }
 
-int robin_user_following_get(int uid, cclist_t **following)
+int robin_user_following_get(int uid, char ***following, size_t *len)
 {
+    robin_user_data_t *data;
+    clist_t *tmp;
+    char **following_vec;
     int ret = 0;
 
     pthread_mutex_lock(&users_mutex);
-
     if (robin_user_is_acquired(&users[uid]))
-        *following = (cclist_t *) users[uid].data->following;
+        data = users[uid].data;
     else
         ret = -1;
-
     pthread_mutex_unlock(&users_mutex);
-    return ret;
+
+    if (ret)
+        return ret;
+
+    following_vec = malloc(data->following_len * sizeof(char *));
+    if (!following_vec) {
+        err("malloc: %s", strerror(errno));
+        return -1;
+    }
+
+    tmp = data->following;
+    for (int i = 0; i < data->following_len; i++) {
+        following_vec[i] = ((robin_user_data_t *) tmp->ptr)->email;
+        tmp = tmp->next;
+    }
+
+    *following = following_vec;
+    *len = data->following_len;
+
+    return 0;
 }
 
 int robin_user_follow(int uid, const char *email)
@@ -301,9 +322,10 @@ int robin_user_follow(int uid, const char *email)
         return -1;
     }
 
-    new_follow->ptr = found->email;
+    new_follow->ptr = found;
     new_follow->next = me->following;
     me->following = new_follow;
+    me->following_len++;
 
     return 0;
 }
@@ -324,6 +346,7 @@ int robin_user_unfollow(int uid, const char *email)
     }
 
     me = users[uid].data;
+
     pthread_mutex_unlock(&users_mutex);
 
     /*
@@ -335,7 +358,7 @@ int robin_user_unfollow(int uid, const char *email)
     prev = NULL;
     el = me->following;
     while (el != NULL) {
-        const char *el_mail = (const char *) el->ptr;
+        const char *el_mail = ((robin_user_data_t *) el->ptr)->email;
 
         if (!strcmp(el_mail, email))
             break;
@@ -353,6 +376,8 @@ int robin_user_unfollow(int uid, const char *email)
         prev->next = el->next;
     else
         me->following = el->next;
+
+    me->following_len--;
 
     free(el);
 

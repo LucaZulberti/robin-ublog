@@ -51,14 +51,17 @@ int robin_user_add(const char *email, const char *psw);
 const char *robin_user_email_get(int uid);
 
 /**
- * @brief Get a const list of followed users
+ * @brief Get a vector with followed users
+ *
+ * The returned pointer 'following' must be freed by the caller.
  *
  * @param uid       the user id
- * @param following the list (void *ptr -> const char *email)
+ * @param following the vector of emails (return)
+ * @param len       the vector len (return)
  * @return int      0 on success
  *                 -1 on error
  */
-int robin_user_following_get(int uid, cclist_t **following);
+int robin_user_following_get(int uid, char ***following, size_t *len);
 
 /**
  * @brief Make the user follow the one identified by email
