@@ -13,7 +13,6 @@
 #include <unistd.h>
 
 #include <pthread.h>
-#include <semaphore.h>
 
 #include "robin.h"
 #include "robin_conn.h"
@@ -21,7 +20,7 @@
 
 
 /*
- * Log shortcut
+ * Log shortcuts
  */
 
 #define err(fmt, args...)  robin_log_err(ROBIN_LOG_ID_POOL, fmt, ## args)
@@ -36,12 +35,21 @@
 
 #define ROBIN_THREAD_POOL_RT_NUM 4
 
+typedef enum rt_state {
+    RT_FREE = 0,
+    RT_BUSY
+} rt_state_t;
+
 typedef struct robin_thread {
     pthread_t thread;  /* phtread fd */
     unsigned int id;   /* thread id */
     int fd;            /* associated socket file descriptor */
 
-    sem_t busy;                /* semaphore for non-active wait when free */
+    /* Robin Thread state */
+    rt_state_t state;
+    pthread_mutex_t state_mutex;
+    pthread_cond_t state_cond;
+
     struct robin_thread *next; /* next available Robin Thread if not busy */
 } robin_thread_t;
 
@@ -60,13 +68,30 @@ static int rt_init(robin_thread_t *rt, int id)
     rt->id = id;
     rt->fd = -1;
 
-    /* initially free */
-    if (sem_init(&rt->busy, 0, 0)) {
+    /* initialize RT state to free */
+    rt->state = RT_FREE;
+    if (pthread_mutex_init(&rt->state_mutex, NULL)) {
         err("%s", strerror(errno));
         return -1;
     }
+    if (pthread_cond_init(&rt->state_cond, NULL)) {
+        err("%s", strerror(errno));
+        return -1;
+    }
+
     rt->next = NULL;
+
     return 0;
+}
+
+static void rt_state_set(robin_thread_t *rt, rt_state_t state)
+{
+    pthread_mutex_lock(&rt->state_mutex);
+
+    rt->state = state;
+
+    pthread_cond_signal(&rt->state_cond);
+    pthread_mutex_unlock(&rt->state_mutex);
 }
 
 static void rt_cleanup(void *arg)
@@ -118,19 +143,28 @@ static void *rt_loop(void *ctx)
 
     /* Robin Thread loop */
     while (1) {
-        robin_log_info(rt_log_id, "ready", me->id);
-        sem_wait(&me->busy);
+        pthread_mutex_lock(&me->state_mutex);
+        switch (me->state) {
+            case RT_FREE:
+                robin_log_info(rt_log_id, "ready", me->id);
+                pthread_cond_wait(&me->state_cond, &me->state_mutex);
+                break;
 
-        robin_log_info(rt_log_id, "serving fd=%d", me->fd);
+            case RT_BUSY:
+                robin_log_info(rt_log_id, "serving fd=%d", me->fd);
 
-        /* handle requests from client until disconnected */
-        robin_conn_manage(me->id, me->fd);
+                /* handle requests from client until disconnected */
+                robin_conn_manage(me->id, me->fd);
 
-        /* re-initialize this RT's data */
-        me->fd = -1;
+                /* re-initialize this RT's data */
+                me->fd = -1;
 
-        /* push this RT in the free list */
-        rt_free_list_push(me);
+                /* push this RT in the free list */
+                me->state = RT_FREE;
+                rt_free_list_push(me);
+                break;
+        }
+        pthread_mutex_unlock(&me->state_mutex);
     }
 
     /* do not execute clean-up, this should not be reached */
@@ -190,7 +224,7 @@ void robin_thread_pool_dispatch(int fd)
     rt->fd = fd;
 
     /* wake up the Robin Thread */
-    sem_post(&rt->busy);
+    rt_state_set(rt, RT_BUSY);
 }
 
 void robin_thread_pool_free(void)
