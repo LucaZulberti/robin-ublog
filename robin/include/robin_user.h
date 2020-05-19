@@ -64,6 +64,19 @@ const char *robin_user_email_get(int uid);
 int robin_user_following_get(int uid, char ***following, size_t *len);
 
 /**
+ * @brief Get a vector of followers
+ *
+ * The returned pointer 'followers' must be freed by the caller.
+ *
+ * @param uid       the user id
+ * @param followers the vector of emails (return)
+ * @param len       the vector len (return)
+ * @return int      0 on success
+ *                 -1 on error
+ */
+int robin_user_followers_get(int uid, char ***followers, size_t *len);
+
+/**
  * @brief Make the user follow the one identified by email
  *
  * @param me    user id that wants to follow <email>
