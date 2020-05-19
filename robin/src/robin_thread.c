@@ -196,7 +196,7 @@ int robin_thread_pool_init(void)
         /* initialize the Robin Thread data */
         if (rt_init(&rt_pool[i], i) < 0) {
             err("failed to initialize the Robin Thread #%d", i);
-            exit(EXIT_FAILURE);
+            return -1;
         }
 
         /* add it to the free list */
