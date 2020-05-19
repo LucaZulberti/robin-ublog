@@ -13,7 +13,6 @@
 #include "robin.h"
 #include "robin_conn.h"
 #include "robin_user.h"
-#include "lib/alloc_safe.h"
 #include "lib/socket.h"
 
 
@@ -141,7 +140,7 @@ static robin_conn_t *rc_alloc(int log_id, int fd)
 {
     robin_conn_t *conn;
 
-    calloc_safe((void **)&conn, 1, sizeof(robin_conn_t));
+    conn = calloc(1, sizeof(robin_conn_t));
     if (!conn) {
         err("calloc: %s", strerror(errno));
         return NULL;
@@ -157,26 +156,26 @@ static void rc_free(robin_conn_t *conn)
 {
     if (conn->buf) {
         dbg("conn_free: buf=%p", conn->buf);
-        free_safe((void **)&conn->buf, NULL);
+        free(conn->buf);
     }
 
     if (conn->reply) {
         dbg("conn_free: reply=%p", conn->reply);
-        free_safe((void **)&conn->reply, NULL);
+        free(conn->reply);
     }
 
     if (conn->replies) {
         dbg("conn_free: replies=%p", conn->replies);
-        free_safe((void **)&conn->replies, NULL);
+        free(conn->replies);
     }
 
     if (conn->argv) {
         dbg("conn_free: argv=%p", conn->argv);
-        free_safe((void **)&conn->argv, NULL);
+        free(conn->argv);
     }
 
     dbg("conn_free: conn=%p", conn);
-    free_safe((void **)&conn, NULL);
+    free(conn);
 }
 
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
@@ -192,7 +191,7 @@ static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
 
     dbg("reply: len=%d", reply_len);
 
-    realloc_safe((void **)&conn->reply, conn->reply, reply_len * sizeof(char));
+    conn->reply = realloc(conn->reply, reply_len * sizeof(char));
     if (!conn->reply) {
         err("malloc: %s", strerror(errno));
         return -1;
@@ -236,7 +235,7 @@ static int rc_cmdparse(robin_conn_t *conn, char *cmd)
 
     ptr = cmd;
     do {
-        realloc_safe((void **)&conn->argv, conn->argv, (argc + 1) * sizeof(char *));
+        conn->argv = realloc(conn->argv, (argc + 1) * sizeof(char *));
         if (!conn->argv) {
             err("realloc: %s", strerror(errno));
             return -1;
@@ -408,7 +407,7 @@ ROBIN_CONN_CMD_FN(follow, conn)
         return ROBIN_CMD_OK;
     }
 
-    realloc_safe((void **)&conn->replies, conn->replies, n * sizeof(char *));
+    conn->replies = realloc(conn->replies, n * sizeof(char *));
     if (!conn->replies) {
         err("malloc: %s", strerror(errno));
         return ROBIN_CMD_ERR;
@@ -480,7 +479,7 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
         return ROBIN_CMD_OK;
     }
 
-    realloc_safe((void **)&conn->replies, conn->replies, n * sizeof(char *));
+    conn->replies = realloc(conn->replies, n * sizeof(char *));
     if (!conn->replies) {
         err("malloc: %s", strerror(errno));
         return ROBIN_CMD_ERR;
