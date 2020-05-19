@@ -280,12 +280,16 @@ int socket_accept_connection(int s_listen, int *s_connect)
     char host[NI_MAXHOST], service[NI_MAXSERV];
     struct sockaddr_in sock_addr;
     socklen_t sock_addr_len = sizeof(sock_addr);
-    int ret;
+    int ret, errno_saved;
 
     ret = accept(s_listen, (struct sockaddr *) &sock_addr, &sock_addr_len);
-    if (ret < 0) {
-        err("accept: %s", strerror(errno));
-        return -1;
+    if (ret < 0) switch (errno) {
+        default:
+            errno_saved = errno;
+            err("accept: %s", strerror(errno));
+            errno = errno_saved;
+        case EINTR:
+            return -1;
     }
     *s_connect = ret;
 

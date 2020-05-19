@@ -20,7 +20,7 @@
 
 
 /*
- * Log shortcut
+ * Log shortcuts
  */
 
 #define err(fmt, args...)  robin_log_err(ROBIN_LOG_ID_MAIN, fmt, ## args)
@@ -30,36 +30,20 @@
 
 
 /*
- * Global data
- */
-
-static char *h_name;
-
-/*
  * Signal handlers
  */
 
-void sigint_handler(int signum)
+volatile static sig_atomic_t signal_caught;
+static void sig_handler(int sig)
 {
-    (void) signum;
-
-    dbg("SIGINT: robin_thread_pool_free");
-    robin_thread_pool_free();
-    dbg("SIGINT: robin_user_free_all");
-    robin_user_free_all();
-
-    if (h_name) {
-        dbg("SIGINT: free: h_name=%p", h_name);
-        free(h_name);
-    }
-
-    exit(EXIT_FAILURE);
+    signal_caught = sig;
 }
 
 
 /*
- * Print welcome string
+ * Print helpers
  */
+
 static void welcome(void)
 {
     char msg[256];
@@ -73,10 +57,6 @@ static void welcome(void)
     putchar('\n');
 }
 
-
-/*
- * Usage
- */
 static void usage(void)
 {
     puts("usage: robin_server <host> <port>");
@@ -87,40 +67,44 @@ static void usage(void)
 
 
 /*
- * TCP parameters
+ * Robin Server
  */
 
 int main(int argc, char **argv)
 {
+	struct sigaction act;
+    char *h_name;
     int port;
-    size_t h_name_len;
     int server_fd, newclient_fd;
     int ret;
 
     welcome();
 
-    /* register signal handlers */
-    signal(SIGINT, sigint_handler);
+    /*
+     * Register signal handler for freeing up
+     * the resources on SIGINT (for Valgrind debug)
+     */
+
+    act.sa_flags = 0;
+    act.sa_handler = sig_handler;
+    sigemptyset(&act.sa_mask);
+    if (sigaction(SIGINT, &act, NULL) < 0) {
+        err("sigaction: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
 
     /*
      * Argument parsing
      */
+
     if (argc != 3) {
         err("invalid number of arguments.");
         usage();
         exit(EXIT_FAILURE);
     }
 
-    /* save host string */
-    h_name_len = strlen(argv[1]);
-    h_name = malloc((h_name_len + 1) * sizeof(char));
-    if (!h_name) {
-        err("%s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    strcpy(h_name, argv[1]);
-
-    /* parse port */
+    h_name = argv[1];
     port = atoi(argv[2]);
 
 	info("local address is %s and port is %d", h_name, port);
@@ -158,13 +142,29 @@ int main(int argc, char **argv)
     while (1) {
         ret = socket_accept_connection(server_fd, &newclient_fd);
         if (ret < 0) {
+            /* signal caught, terminate the server on SIGINT */
+            if (errno == EINTR && signal_caught == SIGINT)
+                break;
+
             err("failed to accept client connection");
             /* waiting for another client */
-            break;
+            continue;
         }
 
         robin_thread_pool_dispatch(newclient_fd);
     }
+
+
+    /*
+     * Free resources
+     */
+
+    dbg("robin_thread_pool_free");
+    robin_thread_pool_free();
+    dbg("robin_user_free_all");
+    robin_user_free_all();
+    dbg("socket_close")
+    socket_close(server_fd);
 
     exit(EXIT_SUCCESS);
 }

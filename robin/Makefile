@@ -2,7 +2,7 @@ TARGETS = robin_server
 #TARGETS = robin_server robin_client
 #LIBS	= robin_api
 
-ifeq ($(DEBUG), valgrind)
+ifeq ($(DEBUG), memcheck)
 CFLAGS = -O0 -g
 else ifeq ($(DEBUG), log)
 CFLAGS = -O2 -DDEBUG=1
