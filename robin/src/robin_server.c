@@ -78,7 +78,6 @@ int main(int argc, char **argv)
 	struct sigaction act;
     char *h_name;
     int port;
-    size_t h_name_len;
     int server_fd, newclient_fd;
     int ret;
 
@@ -102,16 +101,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    /* save host string */
-    h_name_len = strlen(argv[1]);
-    h_name = malloc((h_name_len + 1) * sizeof(char));
-    if (!h_name) {
-        err("%s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    strcpy(h_name, argv[1]);
-
-    /* parse port */
+    h_name = argv[1];
     port = atoi(argv[2]);
 
 	info("local address is %s and port is %d", h_name, port);
@@ -165,11 +155,8 @@ int main(int argc, char **argv)
     robin_thread_pool_free();
     dbg("robin_user_free_all");
     robin_user_free_all();
-
     dbg("socket_close")
     socket_close(server_fd);
-    dbg("free: h_name=%p", h_name);
-    free(h_name);
 
     exit(EXIT_SUCCESS);
 }
