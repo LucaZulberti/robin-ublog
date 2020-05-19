@@ -20,7 +20,7 @@
 
 
 /*
- * Log shortcut
+ * Log shortcuts
  */
 
 #define err(fmt, args...)  robin_log_err(ROBIN_LOG_ID_MAIN, fmt, ## args)
@@ -41,8 +41,9 @@ static void sig_handler(int sig)
 
 
 /*
- * Print welcome string
+ * Print helpers
  */
+
 static void welcome(void)
 {
     char msg[256];
@@ -56,10 +57,6 @@ static void welcome(void)
     putchar('\n');
 }
 
-
-/*
- * Usage
- */
 static void usage(void)
 {
     puts("usage: robin_server <host> <port>");
@@ -70,7 +67,7 @@ static void usage(void)
 
 
 /*
- * TCP parameters
+ * Robin Server
  */
 
 int main(int argc, char **argv)
@@ -83,7 +80,11 @@ int main(int argc, char **argv)
 
     welcome();
 
-    /* register signal handlers */
+    /*
+     * Register signal handler for freeing up
+     * the resources on SIGINT (for Valgrind debug)
+     */
+
     act.sa_flags = 0;
     act.sa_handler = sig_handler;
     sigemptyset(&act.sa_mask);
@@ -92,9 +93,11 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+
     /*
      * Argument parsing
      */
+
     if (argc != 3) {
         err("invalid number of arguments.");
         usage();
@@ -150,6 +153,11 @@ int main(int argc, char **argv)
 
         robin_thread_pool_dispatch(newclient_fd);
     }
+
+
+    /*
+     * Free resources
+     */
 
     dbg("robin_thread_pool_free");
     robin_thread_pool_free();
