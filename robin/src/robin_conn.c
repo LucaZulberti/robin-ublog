@@ -231,31 +231,24 @@ static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
 
 static int rc_cmdparse(robin_conn_t *conn, char *cmd)
 {
-    char *ptr;
-    int argc;
+    char *ptr, *saveptr;
 
-    argc = 0;
+    conn->argc = 0;
 
-    ptr = cmd;
+    ptr = strtok_r(cmd, " ", &saveptr);
+    if (!ptr)
+        return 0;
+
     do {
-        conn->argv = realloc(conn->argv, (argc + 1) * sizeof(char *));
+        conn->argv = realloc(conn->argv, (conn->argc + 1) * sizeof(char *));
         if (!conn->argv) {
             err("realloc: %s", strerror(errno));
             return -1;
         }
 
-        if (argc > 0)         /* if not the first argument */
-            *(ptr++) = '\0';  /* terminate the previous argument */
-
-        while (*ptr == ' ')   /* skip consecutive whitespaces */
-            ptr++;
-
-        conn->argv[argc++] = ptr;  /* store new arg */
-
-        ptr = strchr(ptr, ' ');
-    } while (ptr != NULL);
-
-    conn->argc = argc;
+        dbg("rc_cmdparse: arg #%d: %s", conn->argc, ptr);
+        conn->argv[conn->argc++] = ptr;  /* store new arg */
+    } while ((ptr = strtok_r(NULL, " ", &saveptr)));
 
     return 0;
 }
@@ -667,21 +660,21 @@ void robin_conn_manage(int id, int fd)
         else
             buf[nread - 1] = '\0';
 
-        /* blank line */
-        if (*buf == '\0')
-            continue;
-
         dbg("command received: %s", buf);
 
-        /* parse the command in argc-argv form */
+        /* parse the command in argc-argv form and store it in conn */
         if (rc_cmdparse(conn, buf) < 0) {
             err("rc_cmdparse: failed to parse command");
             goto manager_quit;
         }
 
+        /* blank line */
+        if (conn->argc < 1)
+            continue;
+
         /* search for the command */
         for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-            if (!strcmp(buf, cmd->name)) {
+            if (!strcmp(conn->argv[0], cmd->name)) {
                 info("recognized command: %s", buf);
                 /* execute cmd and evaluate the returned value */
                 switch (cmd->fn(conn)) {
