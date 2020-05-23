@@ -1,7 +1,7 @@
 /*
  * robin_conn.c
  *
- * List of Robin commands available for the clients
+ * Handles the connection with a client executing the available Robin Commands
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
@@ -17,7 +17,7 @@
 
 
 /*
- * Log shortcut
+ * Log shortcuts
  */
 
 #define err(fmt, args...)  robin_log_err(conn->log_id, fmt, ## args)
