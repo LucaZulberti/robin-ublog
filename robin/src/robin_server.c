@@ -163,7 +163,7 @@ int main(int argc, char **argv)
     robin_thread_pool_free();
     dbg("robin_user_free_all");
     robin_user_free_all();
-    dbg("socket_close")
+    dbg("socket_close");
     socket_close(server_fd);
 
     exit(EXIT_SUCCESS);
