@@ -391,13 +391,13 @@ ROBIN_CONN_CMD_FN(logout, conn)
 {
     dbg("%s", conn->argv[0]);
 
-    if (conn->argc != 1) {
-        rc_reply(conn, "-1 invalid number of arguments");
+    if (!conn->logged) {
+        rc_reply(conn, "-2 login is required before logout");
         return ROBIN_CMD_OK;
     }
 
-    if (!conn->logged) {
-        rc_reply(conn, "-2 login is required before logout");
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
 
@@ -417,13 +417,13 @@ ROBIN_CONN_CMD_FN(follow, conn)
 
     dbg("%s: n_emails=%d", conn->argv[0], n);
 
-    if (conn->argc < 2) {
-        rc_reply(conn, "-1 invalid number of arguments");
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (!conn->logged) {
-        rc_reply(conn, "-2 you must be logged in");
+    if (conn->argc < 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
 
@@ -489,13 +489,13 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
 
     dbg("%s: n_emails=%d", conn->argv[0], n);
 
-    if (conn->argc < 2) {
-        rc_reply(conn, "-1 invalid number of arguments");
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (!conn->logged) {
-        rc_reply(conn, "-2 you must be logged in");
+    if (conn->argc < 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
 
@@ -556,13 +556,13 @@ ROBIN_CONN_CMD_FN(following, conn)
 
     dbg("%s", conn->argv[0]);
 
-    if (conn->argc != 1) {
-        rc_reply(conn, "-1 invalid number of arguments");
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (!conn->logged) {
-        rc_reply(conn, "-2 you must be logged in");
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
 
@@ -587,13 +587,13 @@ ROBIN_CONN_CMD_FN(followers, conn)
 
     dbg("%s", conn->argv[0]);
 
-    if (conn->argc != 1) {
-        rc_reply(conn, "-1 invalid number of arguments");
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (!conn->logged) {
-        rc_reply(conn, "-2 you must be logged in");
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
 
