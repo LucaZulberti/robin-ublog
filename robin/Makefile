@@ -13,7 +13,7 @@ endif
 CFLAGS += -Wall
 
 robin_server_SOURCES = robin_server.c robin_thread.c robin_conn.c \
-					   robin_user.c robin_log.c lib/socket.c
+					   robin_user.c robin_cip.c robin_log.c lib/socket.c
 robin_server_SYSLIBS = pthread
 
 robin_api_SOURCES = robin_api.c

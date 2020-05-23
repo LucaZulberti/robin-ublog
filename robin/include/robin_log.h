@@ -64,6 +64,7 @@ typedef enum robin_log_id {
     ROBIN_LOG_ID_POOL,
     ROBIN_LOG_ID_SOCKET,
     ROBIN_LOG_ID_USER,
+    ROBIN_LOG_ID_CIP,
     ROBIN_LOG_ID_RT_BASE = 1000
 } robin_log_id_t;
 

@@ -79,6 +79,10 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
                 id_str = "user";
                 break;
 
+            case ROBIN_LOG_ID_CIP:
+                id_str = "cip";
+                break;
+
             default:
                 id_str = "???";
                 break;
