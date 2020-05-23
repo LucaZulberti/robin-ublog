@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "robin.h"
+#include "robin_cip.h"
 #include "robin_conn.h"
 #include "robin_user.h"
 #include "lib/socket.h"
@@ -102,6 +103,8 @@ ROBIN_CONN_CMD_FN_DECL(follow);
 ROBIN_CONN_CMD_FN_DECL(unfollow);
 ROBIN_CONN_CMD_FN_DECL(following);
 ROBIN_CONN_CMD_FN_DECL(followers);
+ROBIN_CONN_CMD_FN_DECL(cip);
+ROBIN_CONN_CMD_FN_DECL(cips_since);
 ROBIN_CONN_CMD_FN_DECL(quit);
 
 
@@ -126,6 +129,10 @@ static robin_conn_cmd_t robin_cmds[] = {
                          "list following users"),
     ROBIN_CONN_CMD_ENTRY(followers, "",
                          "list followers users"),
+    ROBIN_CONN_CMD_ENTRY(cip, "<msg string>",
+                         "cip a message to Robin"),
+    ROBIN_CONN_CMD_ENTRY(cips_since, "<ts>",
+                         "return the cips sent after timestamp"),
     ROBIN_CONN_CMD_ENTRY(quit, "",
                          "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
@@ -607,6 +614,78 @@ ROBIN_CONN_CMD_FN(followers, conn)
         rc_reply(conn, "%s", followers[i]);
 
     free(followers);
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(cip, conn)
+{
+    const char *user, *msg;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    msg = conn->argv[1];
+
+    dbg("%s: msg_len=%d", conn->argv[0], strlen(msg));
+
+    user = robin_user_email_get(conn->uid);
+    if (!user) {
+        err("%s: failed to get user email", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    if (robin_cip_add(user, msg) < 0) {
+        err("%s: failed to add the cip to the system", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "0 success");
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(cips_since, conn)
+{
+    const robin_cip_t *cip;
+    unsigned int cips_num;
+    time_t ts;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    ts = strtol(conn->argv[1], NULL, 10);
+
+    dbg("%s: ts=%d", conn->argv[0], ts);
+
+    if (robin_cip_get_since(ts, &cip, &cips_num) < 0) {
+        err("%s: failed to get the cips", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "%d cips", cips_num);
+    for (int i = 0; i < cips_num; i++) {
+        rc_reply(conn, "%d %s \"%s\"", cip->ts, cip->user, cip->msg);
+        cip = cip->next;
+    }
 
     return ROBIN_CMD_OK;
 }
