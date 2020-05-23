@@ -231,24 +231,48 @@ static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
 
 static int rc_cmdparse(robin_conn_t *conn, char *cmd)
 {
-    char *ptr, *saveptr;
+    char *start_arg, *end_arg;
+    int last = 0;
 
     conn->argc = 0;
 
-    ptr = strtok_r(cmd, " ", &saveptr);
-    if (!ptr)
-        return 0;
-
+    start_arg = cmd;
     do {
+        if (*start_arg == ' ') {
+            /* discard continuos whitespaces */
+            while (*start_arg == ' ')
+                start_arg++;
+        }
+
+        if (*start_arg == '\0') {
+            /* no more arguments */
+            return 0;
+        } else if (*start_arg == '"') {
+            /* if next arg starts with double quotes, search for the closing
+            * double quotes to store the whole string as one argument
+            */
+            end_arg = strchr(++start_arg, '"');
+            if (!end_arg)
+                return 0;
+        } else
+            end_arg = strchr(start_arg, ' ');
+
+        if (end_arg)
+            *end_arg = '\0';
+        else
+            last = 1;
+
         conn->argv = realloc(conn->argv, (conn->argc + 1) * sizeof(char *));
         if (!conn->argv) {
             err("realloc: %s", strerror(errno));
             return -1;
         }
 
-        dbg("rc_cmdparse: arg #%d: %s", conn->argc, ptr);
-        conn->argv[conn->argc++] = ptr;  /* store new arg */
-    } while ((ptr = strtok_r(NULL, " ", &saveptr)));
+        dbg("rc_cmdparse: arg #%d: %s", conn->argc, start_arg);
+        conn->argv[conn->argc++] = start_arg;  /* store new arg */
+
+        start_arg = end_arg + 1;
+    } while (!last);
 
     return 0;
 }
