@@ -189,6 +189,74 @@ int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums)
     return 0;
 }
 
+int robin_hashtag_get_since(time_t ts, list_t **hashtags, unsigned int *nums)
+{
+    robin_cip_t *cip;
+    list_t *hashtag_list = NULL, *hashtag_el;
+    robin_hashtag_exp_t *hashtag_ptr;
+    unsigned int n;
+
+    pthread_mutex_lock(&cips_mutex);
+
+    cip = last_cip;
+    n = 0;
+    while (cip && cip->ts > ts) {
+        for (int i = 0; i < cip->hashtags_num; i++) {
+            /* search for already registered tag */
+            hashtag_el = hashtag_list;
+            while (hashtag_el) {
+                hashtag_ptr = (robin_hashtag_exp_t *) hashtag_el->ptr;
+                if (!memcmp(hashtag_ptr->tag, cip->hashtags[i].tag,
+                            cip->hashtags[i].len))
+                    break;
+
+                hashtag_el = hashtag_el->next;
+            }
+
+            dbg("hashtags_get_since: found=%p", hashtag_el);
+
+            if (hashtag_el) {
+                hashtag_ptr->count++;
+            } else {
+                hashtag_el = malloc(sizeof(list_t));
+                if (!hashtag_el) {
+                    err("malloc: %s", strerror(errno));
+                    return -1;
+                }
+                hashtag_el->ptr = malloc(sizeof(robin_hashtag_exp_t));
+                if (!hashtag_el->ptr) {
+                    err("malloc: %s", strerror(errno));
+                    return -1;
+                }
+
+                hashtag_ptr = (robin_hashtag_exp_t *) hashtag_el->ptr;
+                hashtag_ptr->tag = malloc((cip->hashtags[i].len + 1) * sizeof(char));
+                if (!hashtag_ptr->tag) {
+                    err("malloc: %s", strerror(errno));
+                    return -1;
+                }
+
+                memcpy(hashtag_ptr->tag, cip->hashtags[i].tag, cip->hashtags[i].len);
+                hashtag_ptr->tag[cip->hashtags[i].len] = '\0';
+                hashtag_ptr->count = 1;
+
+                hashtag_el->next = hashtag_list;
+                hashtag_list = hashtag_el;
+                n++;
+            }
+        }
+
+        cip = cip->prev;
+    }
+
+    pthread_mutex_unlock(&cips_mutex);
+
+    *hashtags = hashtag_list;
+    *nums = n;
+
+    return 0;
+}
+
 void robin_cip_free_all(void)
 {
     robin_cip_t *cip, *tmp;

@@ -18,7 +18,7 @@ typedef struct robin_cip_exported {
 } robin_cip_exp_t;
 
 typedef struct robin_hashtag_exported {
-    const char *tag;
+    char *tag;
     unsigned int count;
 } robin_hashtag_exp_t;
 
@@ -41,6 +41,16 @@ int robin_cip_add(const char *user, const char *msg);
  * @return int 0 on success; -1 on error
  */
 int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums);
+
+/**
+ * @brief Get all hashtags sent after specified timestamp
+ *
+ * @param ts       timestamp
+ * @param hashtags returned hashtags
+ * @param nums     returned number of hashtags
+ * @return int     0 on success; -1 on error
+ */
+int robin_hashtag_get_since(time_t ts, list_t **hashtags, unsigned int *nums);
 
 /**
  * @brief Free up the resources to terminate gracefully
