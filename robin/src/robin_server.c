@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 #include "robin.h"
+#include "robin_cip.h"
 #include "robin_thread.h"
 #include "robin_user.h"
 #include "lib/socket.h"
@@ -163,6 +164,8 @@ int main(int argc, char **argv)
     robin_thread_pool_free();
     dbg("robin_user_free_all");
     robin_user_free_all();
+    dbg("robin_cip_free_all");
+    robin_cip_free_all();
     dbg("socket_close");
     socket_close(server_fd);
 
