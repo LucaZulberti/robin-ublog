@@ -44,4 +44,11 @@ int robin_cip_add(const char *user, const char *msg);
  */
 int robin_cip_get_since(time_t ts, const robin_cip_t **cips, unsigned int *nums);
 
+/**
+ * @brief Free up the resources to terminate gracefully
+ *
+ * All cips in memory are freed.
+ */
+void robin_cip_free_all(void);
+
 #endif /* ROBIN_CIP_H */

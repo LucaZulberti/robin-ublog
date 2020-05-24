@@ -138,3 +138,34 @@ int robin_cip_get_since(time_t ts, const robin_cip_t **cips, unsigned int *nums)
 
     return 0;
 }
+
+void robin_cip_free_all(void)
+{
+    robin_cip_t *cip, *tmp;
+
+    pthread_mutex_lock(&cips_mutex);
+
+    cip = cips;
+    while (cip) {
+        dbg("cip_free: user=%p", cip->user);
+        free(cip->user);
+
+        dbg("cip_free: msg=%p", cip->msg);
+        free(cip->msg);
+
+        dbg("cip_free: hastags=%p", cip->hashtags);
+        free(cip->hashtags);
+
+        tmp = cip;
+        cip = cip->next;
+
+        dbg("cip_free: cip=%p", tmp);
+        free(tmp);
+    }
+
+    cips = NULL;
+    last_cip = NULL;
+
+    pthread_mutex_unlock(&cips_mutex);
+}
+
