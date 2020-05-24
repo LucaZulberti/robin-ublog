@@ -1,7 +1,7 @@
 /*
  * robin_conn.c
  *
- * List of Robin commands available for the clients
+ * Handles the connection with a client executing the available Robin Commands
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
@@ -11,14 +11,14 @@
 #include <stdlib.h>
 
 #include "robin.h"
+#include "robin_cip.h"
 #include "robin_conn.h"
 #include "robin_user.h"
-#include "lib/alloc_safe.h"
 #include "lib/socket.h"
 
 
 /*
- * Log shortcut
+ * Log shortcuts
  */
 
 #define err(fmt, args...)  robin_log_err(conn->log_id, fmt, ## args)
@@ -102,6 +102,10 @@ ROBIN_CONN_CMD_FN_DECL(logout);
 ROBIN_CONN_CMD_FN_DECL(follow);
 ROBIN_CONN_CMD_FN_DECL(unfollow);
 ROBIN_CONN_CMD_FN_DECL(following);
+ROBIN_CONN_CMD_FN_DECL(followers);
+ROBIN_CONN_CMD_FN_DECL(cip);
+ROBIN_CONN_CMD_FN_DECL(cips_since);
+ROBIN_CONN_CMD_FN_DECL(hashtags_since);
 ROBIN_CONN_CMD_FN_DECL(quit);
 
 
@@ -124,6 +128,14 @@ static robin_conn_cmd_t robin_cmds[] = {
                          "unfollow the user identified by the email"),
     ROBIN_CONN_CMD_ENTRY(following, "",
                          "list following users"),
+    ROBIN_CONN_CMD_ENTRY(followers, "",
+                         "list followers users"),
+    ROBIN_CONN_CMD_ENTRY(cip, "<msg string>",
+                         "cip a message to Robin"),
+    ROBIN_CONN_CMD_ENTRY(cips_since, "<ts>",
+                         "return the cips sent after timestamp"),
+    ROBIN_CONN_CMD_ENTRY(hashtags_since, "<ts>",
+                         "return the hastags found in cips sent after timestamp"),
     ROBIN_CONN_CMD_ENTRY(quit, "",
                          "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
@@ -141,7 +153,7 @@ static robin_conn_t *rc_alloc(int log_id, int fd)
 {
     robin_conn_t *conn;
 
-    calloc_safe((void **)&conn, 1, sizeof(robin_conn_t));
+    conn = calloc(1, sizeof(robin_conn_t));
     if (!conn) {
         err("calloc: %s", strerror(errno));
         return NULL;
@@ -157,26 +169,26 @@ static void rc_free(robin_conn_t *conn)
 {
     if (conn->buf) {
         dbg("conn_free: buf=%p", conn->buf);
-        free_safe((void **)&conn->buf, NULL);
+        free(conn->buf);
     }
 
     if (conn->reply) {
         dbg("conn_free: reply=%p", conn->reply);
-        free_safe((void **)&conn->reply, NULL);
+        free(conn->reply);
     }
 
     if (conn->replies) {
         dbg("conn_free: replies=%p", conn->replies);
-        free_safe((void **)&conn->replies, NULL);
+        free(conn->replies);
     }
 
     if (conn->argv) {
         dbg("conn_free: argv=%p", conn->argv);
-        free_safe((void **)&conn->argv, NULL);
+        free(conn->argv);
     }
 
     dbg("conn_free: conn=%p", conn);
-    free_safe((void **)&conn, NULL);
+    free(conn);
 }
 
 static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
@@ -192,7 +204,7 @@ static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
 
     dbg("reply: len=%d", reply_len);
 
-    realloc_safe((void **)&conn->reply, conn->reply, reply_len * sizeof(char));
+    conn->reply = realloc(conn->reply, reply_len * sizeof(char));
     if (!conn->reply) {
         err("malloc: %s", strerror(errno));
         return -1;
@@ -229,31 +241,48 @@ static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
 
 static int rc_cmdparse(robin_conn_t *conn, char *cmd)
 {
-    char *ptr;
-    int argc;
+    char *start_arg, *end_arg;
+    int last = 0;
 
-    argc = 0;
+    conn->argc = 0;
 
-    ptr = cmd;
+    start_arg = cmd;
     do {
-        realloc_safe((void **)&conn->argv, conn->argv, (argc + 1) * sizeof(char *));
+        if (*start_arg == ' ') {
+            /* discard continuos whitespaces */
+            while (*start_arg == ' ')
+                start_arg++;
+        }
+
+        if (*start_arg == '\0') {
+            /* no more arguments */
+            return 0;
+        } else if (*start_arg == '"') {
+            /* if next arg starts with double quotes, search for the closing
+            * double quotes to store the whole string as one argument
+            */
+            end_arg = strchr(++start_arg, '"');
+            if (!end_arg)
+                return 0;
+        } else
+            end_arg = strchr(start_arg, ' ');
+
+        if (end_arg)
+            *end_arg = '\0';
+        else
+            last = 1;
+
+        conn->argv = realloc(conn->argv, (conn->argc + 1) * sizeof(char *));
         if (!conn->argv) {
             err("realloc: %s", strerror(errno));
             return -1;
         }
 
-        if (argc > 0)         /* if not the first argument */
-            *(ptr++) = '\0';  /* terminate the previous argument */
+        dbg("rc_cmdparse: arg #%d: %s", conn->argc, start_arg);
+        conn->argv[conn->argc++] = start_arg;  /* store new arg */
 
-        while (*ptr == ' ')   /* skip consecutive whitespaces */
-            ptr++;
-
-        conn->argv[argc++] = ptr;  /* store new arg */
-
-        ptr = strchr(ptr, ' ');
-    } while (ptr != NULL);
-
-    conn->argc = argc;
+        start_arg = end_arg + 1;
+    } while (!last);
 
     return 0;
 }
@@ -372,13 +401,13 @@ ROBIN_CONN_CMD_FN(logout, conn)
 {
     dbg("%s", conn->argv[0]);
 
-    if (conn->argc != 1) {
-        rc_reply(conn, "-1 invalid number of arguments");
+    if (!conn->logged) {
+        rc_reply(conn, "-2 login is required before logout");
         return ROBIN_CMD_OK;
     }
 
-    if (!conn->logged) {
-        rc_reply(conn, "-2 login is required before logout");
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
         return ROBIN_CMD_OK;
     }
 
@@ -398,17 +427,17 @@ ROBIN_CONN_CMD_FN(follow, conn)
 
     dbg("%s: n_emails=%d", conn->argv[0], n);
 
-    if (conn->argc < 2) {
-        rc_reply(conn, "-1 invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
-
     if (!conn->logged) {
         rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    realloc_safe((void **)&conn->replies, conn->replies, n * sizeof(char *));
+    if (conn->argc < 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    conn->replies = realloc(conn->replies, n * sizeof(char *));
     if (!conn->replies) {
         err("malloc: %s", strerror(errno));
         return ROBIN_CMD_ERR;
@@ -470,17 +499,17 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
 
     dbg("%s: n_emails=%d", conn->argv[0], n);
 
-    if (conn->argc < 2) {
-        rc_reply(conn, "-1 invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
-
     if (!conn->logged) {
         rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    realloc_safe((void **)&conn->replies, conn->replies, n * sizeof(char *));
+    if (conn->argc < 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    conn->replies = realloc(conn->replies, n * sizeof(char *));
     if (!conn->replies) {
         err("malloc: %s", strerror(errno));
         return ROBIN_CMD_ERR;
@@ -532,41 +561,184 @@ ROBIN_CONN_CMD_FN(unfollow, conn)
 
 ROBIN_CONN_CMD_FN(following, conn)
 {
-    cclist_t *following, *tmp;
-    int n;
+    char **following;
+    size_t len;
 
     dbg("%s", conn->argv[0]);
-
-    if (conn->argc != 1) {
-        rc_reply(conn, "-1 invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
 
     if (!conn->logged) {
         rc_reply(conn, "-2 you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (robin_user_following_get(conn->uid, &following) < 0) {
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    if (robin_user_following_get(conn->uid, &following, &len) < 0) {
         rc_reply(conn, "-1 could not get the list of following users");
         return ROBIN_CMD_ERR;
     }
 
-    /* calculate number of following users */
-    n = 0;
-    tmp = following;
-    while (tmp != NULL) {
-        n++;
-        tmp = tmp->next;
+    rc_reply(conn, "%d users", len);
+    for (int i = 0; i < len; i++)
+        rc_reply(conn, "%s", following[i]);
+
+    free(following);
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(followers, conn)
+{
+    char **followers;
+    size_t len;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
     }
 
-    rc_reply(conn, "%d users", n);
+    if (conn->argc != 1) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
 
-    tmp = following;
-    while (tmp != NULL) {
-        rc_reply(conn, "%s", (const char *) tmp->ptr);
+    if (robin_user_followers_get(conn->uid, &followers, &len) < 0) {
+        rc_reply(conn, "-1 could not get the list of followers users");
+        return ROBIN_CMD_ERR;
+    }
 
-        tmp = tmp->next;
+    rc_reply(conn, "%d users", len);
+    for (int i = 0; i < len; i++)
+        rc_reply(conn, "%s", followers[i]);
+
+    free(followers);
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(cip, conn)
+{
+    const char *user, *msg;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    msg = conn->argv[1];
+
+    dbg("%s: msg_len=%d", conn->argv[0], strlen(msg));
+
+    user = robin_user_email_get(conn->uid);
+    if (!user) {
+        err("%s: failed to get user email", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    if (robin_cip_add(user, msg) < 0) {
+        err("%s: failed to add the cip to the system", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "0 success");
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(cips_since, conn)
+{
+    list_t *cip_list, *tmp;
+    unsigned int cips_num;
+    const robin_cip_exp_t *cip;
+    time_t ts;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    ts = strtol(conn->argv[1], NULL, 10);
+
+    dbg("%s: ts=%d", conn->argv[0], ts);
+
+    if (robin_cip_get_since(ts, &cip_list, &cips_num) < 0) {
+        err("%s: failed to get the cips", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "%d cips", cips_num);
+    for (int i = 0; i < cips_num; i++) {
+        cip = (const robin_cip_exp_t *) cip_list->ptr;
+        rc_reply(conn, "%d %s \"%s\"", cip->ts, cip->user, cip->msg);
+
+        tmp = cip_list;
+        cip_list = cip_list->next;
+
+        free(tmp->ptr);
+        free(tmp);
+    }
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(hashtags_since, conn)
+{
+    list_t *hashtag_list, *tmp;
+    unsigned int hashtag_num;
+    robin_hashtag_exp_t *hashtag;
+    time_t ts;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    ts = strtol(conn->argv[1], NULL, 10);
+
+    dbg("%s: ts=%d", conn->argv[0], ts);
+
+    if (robin_hashtag_get_since(ts, &hashtag_list, &hashtag_num) < 0) {
+        err("%s: failed to get the cips", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "%d hashtags", hashtag_num);
+    for (int i = 0; i < hashtag_num; i++) {
+        hashtag = (robin_hashtag_exp_t *) hashtag_list->ptr;
+        rc_reply(conn, "%s %d", hashtag->tag, hashtag->count);
+
+        tmp = hashtag_list;
+        hashtag_list = hashtag_list->next;
+
+        free(hashtag->tag);
+        free(hashtag);
+        free(tmp);
     }
 
     return ROBIN_CMD_OK;
@@ -645,21 +817,21 @@ void robin_conn_manage(int id, int fd)
         else
             buf[nread - 1] = '\0';
 
-        /* blank line */
-        if (*buf == '\0')
-            continue;
-
         dbg("command received: %s", buf);
 
-        /* parse the command in argc-argv form */
+        /* parse the command in argc-argv form and store it in conn */
         if (rc_cmdparse(conn, buf) < 0) {
             err("rc_cmdparse: failed to parse command");
             goto manager_quit;
         }
 
+        /* blank line */
+        if (conn->argc < 1)
+            continue;
+
         /* search for the command */
         for (cmd = robin_cmds; cmd->name != NULL; cmd++) {
-            if (!strcmp(buf, cmd->name)) {
+            if (!strcmp(conn->argv[0], cmd->name)) {
                 info("recognized command: %s", buf);
                 /* execute cmd and evaluate the returned value */
                 switch (cmd->fn(conn)) {
