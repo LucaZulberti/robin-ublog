@@ -65,7 +65,7 @@ int robin_cip_add(const char *user, const char *msg)
 {
     robin_cip_t *new_cip;
     char *hashtag, *ptr;
-    size_t hashtag_len = 0;
+    size_t len;
 
     new_cip = malloc(sizeof(robin_cip_t));
     if (!new_cip) {
@@ -75,14 +75,16 @@ int robin_cip_add(const char *user, const char *msg)
 
     new_cip->ts = time(NULL);
 
-    new_cip->user = malloc((strlen(user) + 1) * sizeof(char));
+    len = strlen(user) + 1;
+    new_cip->user = malloc(len * sizeof(char));
     if (!new_cip->user) {
         err("malloc: %s", strerror(errno));
         return -1;
     }
     strcpy(new_cip->user, user);
 
-    new_cip->msg = malloc((strlen(msg) + 1) * sizeof(char));
+    len = strlen(msg) + 1;
+    new_cip->msg = malloc(len * sizeof(char));
     if (!new_cip->msg) {
         err("malloc: %s", strerror(errno));
         return -1;
@@ -92,19 +94,23 @@ int robin_cip_add(const char *user, const char *msg)
     new_cip->hashtags = NULL;
     new_cip->hashtags_num = 0;
 
+    /* search for hashtags */
     ptr = new_cip->msg;
-    while (ptr) {
+    while (*ptr != '\0') {
         hashtag = strchr(ptr, '#');
         if (!hashtag)
             break;
 
         /* only alphanumeric characters are supported in hashtags */
+        len = 0;
         ptr = ++hashtag;
-        while(isalnum(*(ptr++)))
-            hashtag_len++;
+        while(isalnum(*ptr)) {
+            len++;
+            ptr++;
+        }
 
         /* discard alone # */
-        if (hashtag_len == 0)
+        if (len == 0)
             continue;
 
         new_cip->hashtags = realloc(new_cip->hashtags,
@@ -114,8 +120,10 @@ int robin_cip_add(const char *user, const char *msg)
             return -1;
         }
 
+        dbg("add: found hashtag #%.*s", len, hashtag);
+
         new_cip->hashtags[new_cip->hashtags_num].tag = hashtag;
-        new_cip->hashtags[new_cip->hashtags_num].len = hashtag_len;
+        new_cip->hashtags[new_cip->hashtags_num].len = len;
         new_cip->hashtags_num++;
     }
 
