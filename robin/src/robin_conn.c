@@ -656,8 +656,9 @@ ROBIN_CONN_CMD_FN(cip, conn)
 
 ROBIN_CONN_CMD_FN(cips_since, conn)
 {
-    const robin_cip_t *cip;
+    list_t *cip_list, *tmp;
     unsigned int cips_num;
+    const robin_cip_exp_t *cip;
     time_t ts;
 
     dbg("%s", conn->argv[0]);
@@ -676,15 +677,21 @@ ROBIN_CONN_CMD_FN(cips_since, conn)
 
     dbg("%s: ts=%d", conn->argv[0], ts);
 
-    if (robin_cip_get_since(ts, &cip, &cips_num) < 0) {
+    if (robin_cip_get_since(ts, &cip_list, &cips_num) < 0) {
         err("%s: failed to get the cips", conn->argv[0]);
         return ROBIN_CMD_ERR;
     }
 
     rc_reply(conn, "%d cips", cips_num);
     for (int i = 0; i < cips_num; i++) {
+        cip = (const robin_cip_exp_t *) cip_list->ptr;
         rc_reply(conn, "%d %s \"%s\"", cip->ts, cip->user, cip->msg);
-        cip = cip->next;
+
+        tmp = cip_list;
+        cip_list = cip_list->next;
+
+        free(tmp->ptr);
+        free(tmp);
     }
 
     return ROBIN_CMD_OK;

@@ -9,21 +9,19 @@
 #ifndef ROBIN_CIP_H
 #define ROBIN_CIP_H
 
-typedef struct robin_hashtag {
-    const char *tag;
-    size_t len;
-} robin_hashtag_t;
+#include <time.h>
 
-typedef struct robin_cip {
+typedef struct robin_cip_exported {
     time_t ts;
-    char *user;
-    char *msg;
-    robin_hashtag_t *hashtags;
-    size_t hashtags_num;
+    const char *user;
+    const char *msg;
+} robin_cip_exp_t;
 
-    struct robin_cip *next;
-    struct robin_cip *prev;
-} robin_cip_t;
+typedef struct robin_hashtag_exported {
+    const char *tag;
+    unsigned int count;
+} robin_hashtag_exp_t;
+
 
 /**
  * @brief Add a cip sent by an user to the system
@@ -42,7 +40,7 @@ int robin_cip_add(const char *user, const char *msg);
  * @param nums returned number of cips
  * @return int 0 on success; -1 on error
  */
-int robin_cip_get_since(time_t ts, const robin_cip_t **cips, unsigned int *nums);
+int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums);
 
 /**
  * @brief Free up the resources to terminate gracefully

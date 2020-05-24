@@ -31,9 +31,31 @@
  * Local types and macros
  */
 
+typedef struct robin_hashtag {
+    const char *tag;
+    size_t len;
+} robin_hashtag_t;
+
+typedef struct robin_cip {
+    time_t ts;
+    char *user;
+    char *msg;
+    robin_hashtag_t *hashtags;
+    size_t hashtags_num;
+
+    struct robin_cip *next;
+    struct robin_cip *prev;
+} robin_cip_t;
+
+
+/*
+ * Local data
+ */
+
 static robin_cip_t *cips = NULL;
 static robin_cip_t *last_cip = NULL;
 static pthread_mutex_t cips_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 /*
  * Exported functions
@@ -116,24 +138,44 @@ int robin_cip_add(const char *user, const char *msg)
     return 0;
 }
 
-int robin_cip_get_since(time_t ts, const robin_cip_t **cips, unsigned int *nums)
+int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums)
 {
-    robin_cip_t *ptr, *first_since = NULL;
+    robin_cip_t *cip;
+    list_t *cip_list = NULL, *cip_el;
+    robin_cip_exp_t *ptr;
     unsigned int n;
 
     pthread_mutex_lock(&cips_mutex);
 
-    ptr = last_cip;
+    cip = last_cip;
     n = 0;
-    while (ptr && ptr->ts > ts) {
-        first_since = ptr;
-        ptr = ptr->prev;
+    while (cip && cip->ts > ts) {
+        cip_el = malloc(sizeof(list_t));
+        if (!cip_el) {
+            err("malloc: %s", strerror(errno));
+            return -1;
+        }
+        cip_el->ptr = malloc(sizeof(robin_cip_exp_t));
+        if (!cip_el->ptr) {
+            err("malloc: %s", strerror(errno));
+            return -1;
+        }
+
+        cip_el->next = cip_list;
+        ptr = (robin_cip_exp_t *) cip_el->ptr;
+        ptr->ts = cip->ts;
+        ptr->user = cip->user;
+        ptr->msg = cip->msg;
+
+        cip_list = cip_el;
+
+        cip = cip->prev;
         n++;
     }
 
     pthread_mutex_unlock(&cips_mutex);
 
-    *cips = first_since;
+    *cips = cip_list;
     *nums = n;
 
     return 0;
