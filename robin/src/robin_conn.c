@@ -105,6 +105,7 @@ ROBIN_CONN_CMD_FN_DECL(following);
 ROBIN_CONN_CMD_FN_DECL(followers);
 ROBIN_CONN_CMD_FN_DECL(cip);
 ROBIN_CONN_CMD_FN_DECL(cips_since);
+ROBIN_CONN_CMD_FN_DECL(hashtags_since);
 ROBIN_CONN_CMD_FN_DECL(quit);
 
 
@@ -133,6 +134,8 @@ static robin_conn_cmd_t robin_cmds[] = {
                          "cip a message to Robin"),
     ROBIN_CONN_CMD_ENTRY(cips_since, "<ts>",
                          "return the cips sent after timestamp"),
+    ROBIN_CONN_CMD_ENTRY(hashtags_since, "<ts>",
+                         "return the hastags found in cips sent after timestamp"),
     ROBIN_CONN_CMD_ENTRY(quit, "",
                          "terminate the connection with the server"),
     ROBIN_CONN_CMD_ENTRY_NULL /* terminator */
@@ -691,6 +694,50 @@ ROBIN_CONN_CMD_FN(cips_since, conn)
         cip_list = cip_list->next;
 
         free(tmp->ptr);
+        free(tmp);
+    }
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CONN_CMD_FN(hashtags_since, conn)
+{
+    list_t *hashtag_list, *tmp;
+    unsigned int hashtag_num;
+    robin_hashtag_exp_t *hashtag;
+    time_t ts;
+
+    dbg("%s", conn->argv[0]);
+
+    if (!conn->logged) {
+        rc_reply(conn, "-2 you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (conn->argc != 2) {
+        rc_reply(conn, "-1 invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    ts = strtol(conn->argv[1], NULL, 10);
+
+    dbg("%s: ts=%d", conn->argv[0], ts);
+
+    if (robin_hashtag_get_since(ts, &hashtag_list, &hashtag_num) < 0) {
+        err("%s: failed to get the cips", conn->argv[0]);
+        return ROBIN_CMD_ERR;
+    }
+
+    rc_reply(conn, "%d hashtags", hashtag_num);
+    for (int i = 0; i < hashtag_num; i++) {
+        hashtag = (robin_hashtag_exp_t *) hashtag_list->ptr;
+        rc_reply(conn, "%s %d", hashtag->tag, hashtag->count);
+
+        tmp = hashtag_list;
+        hashtag_list = hashtag_list->next;
+
+        free(hashtag->tag);
+        free(hashtag);
         free(tmp);
     }
 
