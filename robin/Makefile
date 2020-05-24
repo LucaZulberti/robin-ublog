@@ -6,6 +6,8 @@ ifeq ($(DEBUG), memcheck)
 CFLAGS = -O0 -g
 else ifeq ($(DEBUG), log)
 CFLAGS = -O2 -DDEBUG=1
+else ifeq ($(DEBUG), all)
+CFLAGS = -O0 -g -DDEBUG=1
 else
 CFLAGS = -O2
 endif
