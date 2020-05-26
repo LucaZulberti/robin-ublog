@@ -125,6 +125,15 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    /*
+     * Load users' email and password from file
+     */
+
+    if (robin_users_load("./users.txt")) {
+        err("failed to load user file from file system!");
+        exit(EXIT_FAILURE);
+    }
+
 
     /*
      * Thread pool spawning
