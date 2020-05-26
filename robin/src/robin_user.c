@@ -10,6 +10,7 @@
 #include "robin.h"
 #include "robin_user.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <pthread.h>
@@ -56,6 +57,7 @@ typedef struct robin_user {
  * Local data
  */
 
+static char *users_file = NULL;
 static robin_user_t *users = NULL;
 static int users_len = 0;
 static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -68,11 +70,21 @@ static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int robin_user_add_unsafe(const char * email, const char * psw)
 {
     int i, uid;
+    FILE *fp;
+    size_t email_len, psw_len;
 
     dbg("add: email=%s psw=%s", email, psw);
 
-    if (strlen(email) > ROBIN_USER_EMAIL_LEN - 1) {
+    email_len = strlen(email);
+    if (email_len > ROBIN_USER_EMAIL_LEN - 1) {
         warn("add: email is longer than " STR(ROBIN_USER_EMAIL_LEN)
+             " characters");
+        return 1;
+    }
+
+    psw_len = strlen(psw);
+    if (psw_len > ROBIN_USER_PSW_LEN - 1) {
+        warn("add: password is longer than " STR(ROBIN_USER_PSW_LEN)
              " characters");
         return 1;
     }
@@ -117,7 +129,23 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
 
     dbg("add: new user uid=%d", uid);
 
-    /* add new users in users.txt (TODO) */
+    /* do not add user on file system if file pointer is not initialized */
+    if (!users_file)
+        return 0;
+
+    /* add new users on file system */
+    fp = fopen(users_file, "a+");
+    if (!fp) {
+        err("fopen: %s", strerror(errno));
+        return -1;
+    }
+
+    fwrite(email, sizeof(char), email_len, fp);
+    fwrite(":", sizeof(char), 1, fp);
+    fwrite(psw, sizeof(char), psw_len, fp);
+    fwrite("\n", sizeof(char), 1, fp);
+
+    fclose(fp);
 
     return 0;
 }
@@ -149,7 +177,7 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
 
             while (cur != NULL) {
                 next = cur->next;
-                dbg("user_data_free: following=%p", cur);
+                dbg("data_free: following=%p", cur);
                 free(cur);
                 cur = next;
             }
@@ -175,6 +203,55 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
 /*
  * Exported functions
  */
+
+int robin_users_load(const char *filename)
+{
+    FILE *fp;
+    char *buf = NULL, *ptr;
+    size_t filename_len, buf_len = 0;
+    ssize_t nread;
+
+    dbg("load: open file %s", filename);
+
+    fp = fopen(filename, "a+");
+    if (!fp) {
+        err("fopen: %s", strerror(errno));
+        return -1;
+    }
+
+    while ((nread = getline(&buf, &buf_len, fp)) != -1) {
+        /* remove new line from buffer if present */
+        ptr = strchr(buf, '\n');
+        if (ptr)
+            *ptr = '\0';
+
+        /* separate email and password */
+        ptr = strchr(buf, ':');
+        if (!ptr) {
+            err("load: invalid format of user file");
+            return -1;
+        }
+
+        *(ptr++) = '\0';
+        robin_user_add_unsafe(buf, ptr);
+    }
+
+    free(buf);
+    fclose(fp);
+
+    dbg("load: all users have been register into the system");
+
+    /* save filename for successive user registrations */
+    filename_len = strlen(filename) + 1;
+    users_file = malloc(filename_len * sizeof(char));
+    if (!users_file) {
+        err("malloc: %s", strerror(errno));
+        return -1;
+    }
+    strcpy(users_file, filename);
+
+    return 0;
+}
 
 int robin_user_acquire(const char *email, const char *psw, int *uid)
 {
@@ -496,18 +573,25 @@ void robin_user_free_all(void)
 {
     pthread_mutex_lock(&users_mutex);
 
-    for (int i = 0; i < users_len; i++) {
-        /* skip acquired resources */
-        if (robin_user_is_acquired(&users[i]))
-            continue;
+    if (users) {
+        for (int i = 0; i < users_len; i++) {
+            /* skip acquired resources */
+            if (robin_user_is_acquired(&users[i]))
+                continue;
 
-        pthread_mutex_lock(&users[i].acquired);
-        robin_user_data_free_unsafe(users[i].data);
-        pthread_mutex_unlock(&users[i].acquired);
+            pthread_mutex_lock(&users[i].acquired);
+            robin_user_data_free_unsafe(users[i].data);
+            pthread_mutex_unlock(&users[i].acquired);
+        }
+
+        dbg("free_all: users=%p", users);
+        free(users);
     }
 
-    dbg("user_free_all: users=%p", users);
-    free(users);
+    if (users_file) {
+        dbg("free_all: users_file=%p", users_file);
+        free(users_file);
+    }
 
     pthread_mutex_unlock(&users_mutex);
 }

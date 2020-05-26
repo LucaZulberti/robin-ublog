@@ -11,6 +11,14 @@
 #include "robin.h"
 
 /**
+ * @brief Load users and password from file in memory
+ *
+ * @param filename path to user file
+ * @return int     0 on success; -1 on error
+ */
+int robin_users_load(const char *filename);
+
+/**
  * @brief Acquire (exclusive access) the user if email:psw are valid
  *
  * @param email user email
