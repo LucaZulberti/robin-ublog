@@ -183,13 +183,13 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
 
             while (cur != NULL) {
                 next = cur->next;
-                dbg("user_data_free: followers=%p", cur);
+                dbg("data_free: followers=%p", cur);
                 free(cur);
                 cur = next;
             }
         }
 
-        dbg("user_data_free: data=%p", data);
+        dbg("data_free: data=%p", data);
         free(data);
     }
 }
@@ -284,11 +284,11 @@ int robin_user_acquire(const char *email, const char *psw, int *uid)
             *uid = i;
             break;
         } else if (ret == EBUSY) {
-            warn("user data already acquired by someone else");
+            warn("acquire: user data already acquired by someone else");
             ret = 1;
             break;
         } else {
-            err("failed to acquire the user data");
+            err("acquire: failed to acquire the user data");
             ret = -1;
             break;
         }
