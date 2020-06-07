@@ -7,14 +7,15 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#include "robin.h"
-#include "robin_user.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <crypt.h>
 #include <pthread.h>
 
+#include "robin.h"
+#include "robin_user.h"
+#include "lib/password.h"
 
 /*
  * Log shortcut
@@ -35,8 +36,8 @@
 
 typedef struct robin_user_data {
     /* Login information */
-    char email[ROBIN_USER_EMAIL_LEN];
-    char psw[ROBIN_USER_PSW_LEN];  /* hashed password */
+    char email[ROBIN_USER_EMAIL_LEN + 1];
+    char psw[ROBIN_USER_PSW_LEN + 1];  /* hashed password */
 
     /* Social data */
     clist_t *following;
@@ -133,18 +134,12 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
     if (!users_file)
         return 0;
 
-    /* add new users on file system */
     fp = fopen(users_file, "a+");
     if (!fp) {
         err("fopen: %s", strerror(errno));
         return -1;
     }
-
-    fwrite(email, sizeof(char), email_len, fp);
-    fwrite(":", sizeof(char), 1, fp);
-    fwrite(psw, sizeof(char), psw_len, fp);
-    fwrite("\n", sizeof(char), 1, fp);
-
+    fprintf(fp, "%s:%s\n", email, psw);
     fclose(fp);
 
     return 0;
@@ -231,9 +226,13 @@ int robin_users_load(const char *filename)
             err("load: invalid format of user file");
             return -1;
         }
-
         *(ptr++) = '\0';
-        robin_user_add_unsafe(buf, ptr);
+
+        /* actually add the user */
+        if (robin_user_add_unsafe(buf, ptr) < 0) {
+            err("load: failed to add the user %s to the system", buf);
+            return -1;
+        }
     }
 
     free(buf);
@@ -255,18 +254,30 @@ int robin_users_load(const char *filename)
 
 int robin_user_acquire(const char *email, const char *psw, int *uid)
 {
-    int ret = 0;
+    char psw_hashed[512];
+    int ret;
 
     dbg("acquire_data: email=%s psw=%s", email, psw);
 
     pthread_mutex_lock(&users_mutex);
 
-    /* default return value: invalid email and password */
+    /* default return value: invalid email */
     ret = 2;
     for (int i = 0; i < users_len; i++) {
-        if (strcmp(email, users[i].data->email) ||
-                strcmp(psw, users[i].data->psw))
+        if (strcmp(email, users[i].data->email))
             continue;
+
+        ret = password_hash(psw_hashed, psw, users[i].data->psw);
+        if (ret < 0) {
+            err("acquire: failed to hash the password");
+            return -1;
+        }
+
+        if (strcmp(psw_hashed, users[i].data->psw)) {
+            /* invalid password */
+            ret = 3;
+            break;
+        }
 
         ret = pthread_mutex_trylock(&users[i].acquired);
         if (ret == 0) {
@@ -302,10 +313,17 @@ void robin_user_release(int uid)
 
 int robin_user_add(const char *email, const char *psw)
 {
+    char psw_hashed[512];
     int ret;
 
+    ret = password_hash(psw_hashed, psw, NULL);
+    if (ret < 0) {
+        err("add: could not hash the password");
+        return -1;
+    }
+
     pthread_mutex_lock(&users_mutex);
-    ret = robin_user_add_unsafe(email, psw);
+    ret = robin_user_add_unsafe(email, psw_hashed);
     pthread_mutex_unlock(&users_mutex);
 
     return ret;
