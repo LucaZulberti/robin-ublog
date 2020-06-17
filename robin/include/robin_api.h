@@ -13,4 +13,12 @@
 #ifndef ROBIN_API_H
 #define ROBIN_API_H
 
+/* Connection handling */
+int robin_api_init(int fd);
+
+/* API interface */
+int robin_api_register(const char *email, const char *password);
+int robin_api_login(const char *email, const char *password);
+int robin_api_logout(void);
+
 #endif /* ROBIN_API_H */

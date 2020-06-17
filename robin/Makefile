@@ -1,6 +1,6 @@
 TARGETS = robin_server
 #TARGETS = robin_server robin_client
-#LIBS	= robin_api
+LIBS	= robin_api
 
 ifeq ($(DEBUG), memcheck)
 CFLAGS = -O0 -g
