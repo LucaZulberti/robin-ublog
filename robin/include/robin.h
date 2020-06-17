@@ -24,7 +24,7 @@
  * Robin release string
  */
 
-#define ROBIN_VERSION_CORE          "0.7.0"
+#define ROBIN_VERSION_CORE          "0.7.1"
 #define ROBIN_VERSION_CORE_STRING   "v" ROBIN_VERSION_CORE
 
 #define ROBIN_PRERELEASE            "dev"

@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "robin.h"
 #include "robin_cip.h"
@@ -110,6 +111,9 @@ int main(int argc, char **argv)
 
 	info("local address is %s and port is %d", h_name, port);
 
+    /* init seed for prng (needed by lib/password) */
+    srand(time(NULL));
+
 
     /*
      * Socket creation and listening
@@ -122,6 +126,16 @@ int main(int argc, char **argv)
 
     if (socket_set_keepalive(server_fd, 10, 10, 6) < 0) {
         err("failed to set keepalive socket options");
+        exit(EXIT_FAILURE);
+    }
+
+
+    /*
+     * Load users' email and password from file
+     */
+
+    if (robin_users_load("./users.txt")) {
+        err("failed to load user file from file system!");
         exit(EXIT_FAILURE);
     }
 

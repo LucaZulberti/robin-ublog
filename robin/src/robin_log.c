@@ -71,16 +71,20 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
                 id_str = "rt_pool";
                 break;
 
-            case ROBIN_LOG_ID_SOCKET:
-                id_str = "socket";
-                break;
-
             case ROBIN_LOG_ID_USER:
                 id_str = "user";
                 break;
 
             case ROBIN_LOG_ID_CIP:
                 id_str = "cip";
+                break;
+
+            case ROBIN_LOG_ID_SOCKET:
+                id_str = "socket";
+                break;
+
+            case ROBIN_LOG_ID_PASSWORD:
+                id_str = "password";
                 break;
 
             default:

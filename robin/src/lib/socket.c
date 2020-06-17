@@ -113,7 +113,6 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
             nread = read(fd, *buf + *len, SOCKET_ALLOCATION_CHUNK_LEN);
             dbg("recvline: nread=%d", nread);
         } while (nread < 0 && errno == EAGAIN);
-        dbg("read: nread = %d", nread);
 
         if (nread < 0) {
             err("failed to read another chunk from socket");
@@ -121,7 +120,7 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
         } else if (nread == 0)  /* EOF! */
             return 0;
 
-        dbg("recvline: buf=%s", *buf);
+        dbg("recvline: buf=%.*s", *len + nread, *buf);
 
         /* Now let's try to find the '\n'! */
         end = findchar(*buf + *len, '\n', nread);

@@ -7,13 +7,15 @@
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
 
-#include "robin.h"
-#include "robin_user.h"
-
+#include <stdio.h>
 #include <stdlib.h>
 
+#include <crypt.h>
 #include <pthread.h>
 
+#include "robin.h"
+#include "robin_user.h"
+#include "lib/password.h"
 
 /*
  * Log shortcut
@@ -34,8 +36,8 @@
 
 typedef struct robin_user_data {
     /* Login information */
-    char email[ROBIN_USER_EMAIL_LEN];
-    char psw[ROBIN_USER_PSW_LEN];  /* hashed password */
+    char email[ROBIN_USER_EMAIL_LEN + 1];
+    char psw[ROBIN_USER_PSW_LEN + 1];  /* hashed password */
 
     /* Social data */
     clist_t *following;
@@ -56,6 +58,7 @@ typedef struct robin_user {
  * Local data
  */
 
+static char *users_file = NULL;
 static robin_user_t *users = NULL;
 static int users_len = 0;
 static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -68,11 +71,21 @@ static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int robin_user_add_unsafe(const char * email, const char * psw)
 {
     int i, uid;
+    FILE *fp;
+    size_t email_len, psw_len;
 
     dbg("add: email=%s psw=%s", email, psw);
 
-    if (strlen(email) > ROBIN_USER_EMAIL_LEN - 1) {
+    email_len = strlen(email);
+    if (email_len > ROBIN_USER_EMAIL_LEN - 1) {
         warn("add: email is longer than " STR(ROBIN_USER_EMAIL_LEN)
+             " characters");
+        return 1;
+    }
+
+    psw_len = strlen(psw);
+    if (psw_len > ROBIN_USER_PSW_LEN - 1) {
+        warn("add: password is longer than " STR(ROBIN_USER_PSW_LEN)
              " characters");
         return 1;
     }
@@ -117,7 +130,17 @@ static int robin_user_add_unsafe(const char * email, const char * psw)
 
     dbg("add: new user uid=%d", uid);
 
-    /* add new users in users.txt (TODO) */
+    /* do not add user on file system if file pointer is not initialized */
+    if (!users_file)
+        return 0;
+
+    fp = fopen(users_file, "a+");
+    if (!fp) {
+        err("fopen: %s", strerror(errno));
+        return -1;
+    }
+    fprintf(fp, "%s:%s\n", email, psw);
+    fclose(fp);
 
     return 0;
 }
@@ -149,7 +172,7 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
 
             while (cur != NULL) {
                 next = cur->next;
-                dbg("user_data_free: following=%p", cur);
+                dbg("data_free: following=%p", cur);
                 free(cur);
                 cur = next;
             }
@@ -160,13 +183,13 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
 
             while (cur != NULL) {
                 next = cur->next;
-                dbg("user_data_free: followers=%p", cur);
+                dbg("data_free: followers=%p", cur);
                 free(cur);
                 cur = next;
             }
         }
 
-        dbg("user_data_free: data=%p", data);
+        dbg("data_free: data=%p", data);
         free(data);
     }
 }
@@ -176,31 +199,96 @@ static void robin_user_data_free_unsafe(robin_user_data_t *data)
  * Exported functions
  */
 
+int robin_users_load(const char *filename)
+{
+    FILE *fp;
+    char *buf = NULL, *ptr;
+    size_t filename_len, buf_len = 0;
+    ssize_t nread;
+
+    dbg("load: open file %s", filename);
+
+    fp = fopen(filename, "a+");
+    if (!fp) {
+        err("fopen: %s", strerror(errno));
+        return -1;
+    }
+
+    while ((nread = getline(&buf, &buf_len, fp)) != -1) {
+        /* remove new line from buffer if present */
+        ptr = strchr(buf, '\n');
+        if (ptr)
+            *ptr = '\0';
+
+        /* separate email and password */
+        ptr = strchr(buf, ':');
+        if (!ptr) {
+            err("load: invalid format of user file");
+            return -1;
+        }
+        *(ptr++) = '\0';
+
+        /* actually add the user */
+        if (robin_user_add_unsafe(buf, ptr) < 0) {
+            err("load: failed to add the user %s to the system", buf);
+            return -1;
+        }
+    }
+
+    free(buf);
+    fclose(fp);
+
+    dbg("load: all users have been register into the system");
+
+    /* save filename for successive user registrations */
+    filename_len = strlen(filename) + 1;
+    users_file = malloc(filename_len * sizeof(char));
+    if (!users_file) {
+        err("malloc: %s", strerror(errno));
+        return -1;
+    }
+    strcpy(users_file, filename);
+
+    return 0;
+}
+
 int robin_user_acquire(const char *email, const char *psw, int *uid)
 {
-    int ret = 0;
+    char psw_hashed[512];
+    int ret;
 
     dbg("acquire_data: email=%s psw=%s", email, psw);
 
     pthread_mutex_lock(&users_mutex);
 
-    /* default return value: invalid email and password */
+    /* default return value: invalid email */
     ret = 2;
     for (int i = 0; i < users_len; i++) {
-        if (strcmp(email, users[i].data->email) ||
-                strcmp(psw, users[i].data->psw))
+        if (strcmp(email, users[i].data->email))
             continue;
+
+        ret = password_hash(psw_hashed, psw, users[i].data->psw);
+        if (ret < 0) {
+            err("acquire: failed to hash the password");
+            return -1;
+        }
+
+        if (strcmp(psw_hashed, users[i].data->psw)) {
+            /* invalid password */
+            ret = 3;
+            break;
+        }
 
         ret = pthread_mutex_trylock(&users[i].acquired);
         if (ret == 0) {
             *uid = i;
             break;
         } else if (ret == EBUSY) {
-            warn("user data already acquired by someone else");
+            warn("acquire: user data already acquired by someone else");
             ret = 1;
             break;
         } else {
-            err("failed to acquire the user data");
+            err("acquire: failed to acquire the user data");
             ret = -1;
             break;
         }
@@ -225,10 +313,17 @@ void robin_user_release(int uid)
 
 int robin_user_add(const char *email, const char *psw)
 {
+    char psw_hashed[512];
     int ret;
 
+    ret = password_hash(psw_hashed, psw, NULL);
+    if (ret < 0) {
+        err("add: could not hash the password");
+        return -1;
+    }
+
     pthread_mutex_lock(&users_mutex);
-    ret = robin_user_add_unsafe(email, psw);
+    ret = robin_user_add_unsafe(email, psw_hashed);
     pthread_mutex_unlock(&users_mutex);
 
     return ret;
@@ -496,18 +591,25 @@ void robin_user_free_all(void)
 {
     pthread_mutex_lock(&users_mutex);
 
-    for (int i = 0; i < users_len; i++) {
-        /* skip acquired resources */
-        if (robin_user_is_acquired(&users[i]))
-            continue;
+    if (users) {
+        for (int i = 0; i < users_len; i++) {
+            /* skip acquired resources */
+            if (robin_user_is_acquired(&users[i]))
+                continue;
 
-        pthread_mutex_lock(&users[i].acquired);
-        robin_user_data_free_unsafe(users[i].data);
-        pthread_mutex_unlock(&users[i].acquired);
+            pthread_mutex_lock(&users[i].acquired);
+            robin_user_data_free_unsafe(users[i].data);
+            pthread_mutex_unlock(&users[i].acquired);
+        }
+
+        dbg("free_all: users=%p", users);
+        free(users);
     }
 
-    dbg("user_free_all: users=%p", users);
-    free(users);
+    if (users_file) {
+        dbg("free_all: users_file=%p", users_file);
+        free(users_file);
+    }
 
     pthread_mutex_unlock(&users_mutex);
 }
