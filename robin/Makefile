@@ -1,5 +1,4 @@
-TARGETS = robin_server
-#TARGETS = robin_server robin_client
+TARGETS = robin_server robin_client
 LIBS	= robin_api
 
 ifeq ($(DEBUG), memcheck)
@@ -19,9 +18,9 @@ robin_server_SOURCES = robin_server.c robin_thread.c robin_conn.c \
 					   lib/password.c lib/socket.c
 robin_server_SYSLIBS = pthread crypt
 
-robin_api_SOURCES = robin_api.c
+robin_api_SOURCES = robin_api.c robin_log.c
 
-robin_client_SOURCES = robin_client.c
+robin_client_SOURCES = robin_client.c lib/socket.c
 robin_client_LIBS    = robin_api
 
 include ../make-common/common.mk

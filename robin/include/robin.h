@@ -1,8 +1,8 @@
 /*
  * robin.h
  *
- * Header file containing common includes and macros for Robin Server and
- * Robin API (internals).
+ * Header file containing common includes and macros for Robin Server,
+ * Robin API and Robin Client.
  *
  * Luca Zulberti <l.zulberti@studenti.unipi.it>
  */
@@ -29,7 +29,7 @@
 
 #define ROBIN_PRERELEASE        "dev"
 #define ROBIN_PRERELEASE_STRING ROBIN_VERSION_CORE_STRING \
-                                    "-" ROBIN_PRERELEASE
+                                "-" ROBIN_PRERELEASE
 
 #define ROBIN_RELEASE_STRING ROBIN_VERSION_CORE_STRING
 
@@ -46,6 +46,20 @@
                                     "-" ROBIN_API_PRERELEASE
 
 #define ROBIN_API_RELEASE_STRING ROBIN_API_PRERELEASE_STRING
+
+
+/*
+ * Robin Client release string
+ */
+
+#define ROBIN_CLIENT_VERSION_CORE        "0.1.0"
+#define ROBIN_CLIENT_VERSION_CORE_STRING "v" ROBIN_CLIENT_VERSION_CORE
+
+#define ROBIN_CLIENT_PRERELEASE        "dev"
+#define ROBIN_CLIENT_PRERELEASE_STRING ROBIN_CLIENT_VERSION_CORE_STRING \
+                                       "-" ROBIN_CLIENT_PRERELEASE
+
+#define ROBIN_CLIENT_RELEASE_STRING ROBIN_CLIENT_PRERELEASE_STRING
 
 
 /*
