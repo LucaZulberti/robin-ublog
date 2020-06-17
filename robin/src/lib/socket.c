@@ -224,7 +224,7 @@ int socket_sendn(int fd, void *vptr, size_t n)
     return writen(fd, vptr, n);
 }
 
-int socket_open_listen(char *host, unsigned short port, int *s_listen)
+int socket_open_listen(const char *host, unsigned short port, int *s_listen)
 {
     struct addrinfo hints, *addr;
     int ret;
@@ -294,12 +294,14 @@ int socket_accept_connection(int s_listen, int *s_connect)
     ret = getnameinfo((struct sockaddr *) &sock_addr, sock_addr_len,
                       host, NI_MAXHOST, service, NI_MAXSERV,
                       NI_NUMERICSERV);
-    if (ret == 0)
-        info("new client from %s:%s", host, service);
-    else
+    if (ret != 0) {
         err("getnameinfo: %s", gai_strerror(ret));
+        return -1;
+    }
 
-    return 0;
+    info("new client from %s:%s", host, service);
+
+    return ret;
 }
 
 int socket_set_keepalive(int fd, int idle, int intvl, int cnt)
@@ -336,6 +338,49 @@ int socket_set_keepalive(int fd, int idle, int intvl, int cnt)
     }
 
     return 0;
+}
+
+int socket_open_connect(const char *host, unsigned short port, int *s_connect)
+{
+    struct addrinfo hints, *addr;
+    int ret;
+
+    /* validate remote address where to connect to */
+    memset (&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_flags = AI_PASSIVE;
+
+    ret = getaddrinfo(host, NULL, &hints, &addr);
+    if (ret) {
+        err("getaddrinfo: %s", gai_strerror(ret));
+        return ret;
+    }
+
+    /* override port */
+    ((struct sockaddr_in *) addr->ai_addr)->sin_port = htons(port);
+
+    ret = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+    if (ret < 0) {
+        err("socket: %s", strerror(errno));
+        goto connect_quit;
+    }
+    *s_connect = ret;
+
+    if (connect(*s_connect, (struct sockaddr *)addr->ai_addr,
+                sizeof(*addr->ai_addr)) < 0) {
+		err("connect: %s", strerror(errno));
+		return 1;
+	}
+
+    info("connected to %s:%d", host, port);
+
+    ret = 0;
+
+connect_quit:
+    freeaddrinfo(addr);
+    return ret;
 }
 
 int socket_close(int s)
