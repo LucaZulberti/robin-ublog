@@ -15,6 +15,7 @@
 
 /* Connection handling */
 int robin_api_init(int fd);
+void robin_api_free(void);
 
 /* API interface */
 int robin_api_register(const char *email, const char *password);
