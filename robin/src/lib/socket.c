@@ -370,9 +370,9 @@ int socket_open_connect(const char *host, unsigned short port, int *s_connect)
 
     if (connect(*s_connect, (struct sockaddr *)addr->ai_addr,
                 sizeof(*addr->ai_addr)) < 0) {
-		err("connect: %s", strerror(errno));
-		return 1;
-	}
+    err("connect: %s", strerror(errno));
+    return 1;
+    }
 
     info("connected to %s:%d", host, port);
 

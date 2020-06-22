@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     h_name = argv[1];
     port = atoi(argv[2]);
 
-	info("remote address is %s and port is %d", h_name, port);
+    info("remote address is %s and port is %d", h_name, port);
 
 
     /*
