@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #include "robin.h"
-#include "robin_api.h"
+#include "robin_cli.h"
 #include "lib/socket.h"
 
 
@@ -86,6 +86,8 @@ int main(int argc, char **argv)
         err("failed to connect to the Robin Server");
         exit(EXIT_FAILURE);
     }
+
+    robin_cli_manage(client_fd);
 
 
     /*

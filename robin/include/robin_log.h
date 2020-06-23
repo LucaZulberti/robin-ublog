@@ -65,6 +65,7 @@ typedef enum robin_log_id {
     ROBIN_LOG_ID_USER,
     ROBIN_LOG_ID_CIP,
     ROBIN_LOG_ID_API,
+    ROBIN_LOG_ID_CLI,
     ROBIN_LOG_ID_SOCKET,
     ROBIN_LOG_ID_PASSWORD,
     ROBIN_LOG_ID_RT_BASE = 1000

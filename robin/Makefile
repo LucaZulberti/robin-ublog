@@ -20,7 +20,7 @@ robin_server_SYSLIBS = pthread crypt
 
 robin_api_SOURCES = robin_api.c robin_log.c
 
-robin_client_SOURCES = robin_client.c lib/socket.c
+robin_client_SOURCES = robin_client.c robin_cli.c lib/socket.c
 robin_client_LIBS    = robin_api
 
 include ../make-common/common.mk

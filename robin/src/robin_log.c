@@ -83,6 +83,10 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
                 id_str = "api";
                 break;
 
+            case ROBIN_LOG_ID_CLI:
+                id_str = "cli";
+                break;
+
             case ROBIN_LOG_ID_SOCKET:
                 id_str = "socket";
                 break;
