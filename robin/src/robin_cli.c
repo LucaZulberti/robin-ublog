@@ -83,6 +83,7 @@ ROBIN_CLI_CMD_FN_DECL(help);
 ROBIN_CLI_CMD_FN_DECL(register);
 ROBIN_CLI_CMD_FN_DECL(login);
 ROBIN_CLI_CMD_FN_DECL(logout);
+ROBIN_CLI_CMD_FN_DECL(follow);
 ROBIN_CLI_CMD_FN_DECL(quit);
 
 
@@ -99,6 +100,8 @@ static robin_cli_cmd_t robin_cmds[] = {
                          "login to Robin with email and password"),
     ROBIN_CLI_CMD_ENTRY(logout, "",
                          "logout from Robin"),
+    ROBIN_CLI_CMD_ENTRY(follow, "<email>",
+                         "follow the user identified by the email"),
     ROBIN_CLI_CMD_ENTRY(quit, "",
                          "terminate the connection with the server"),
     ROBIN_CLI_CMD_ENTRY_NULL /* terminator */
@@ -346,6 +349,65 @@ ROBIN_CLI_CMD_FN(logout, cli)
     *(cli->email) = '\0';
 
     printf("logout successfull\n");
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CLI_CMD_FN(follow, cli)
+{
+    int ret, *res;
+    char *emails;
+
+    dbg("%s: n_emails=%d", cli->argv[0], cli->argc - 1);
+
+    if (!cli->logged) {
+        warn("you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (cli->argc < 2) {
+        warn("invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    emails = cli->argv[1];
+
+    /* rebuild string from argv if argc > 2 */
+    if (cli->argc > 2)
+        for (int i = 1; i < cli->argc - 1; i++)
+            *(cli->argv[i + 1] - 1) = ' ';
+
+
+    ret = robin_api_follow(emails, &res);
+    if (ret < 0) {
+        err("server error, could not follow anyone");
+        return ROBIN_CMD_ERR;
+    }
+
+    /* rebuild argv from string if argc > 2 */
+    if (cli->argc > 2)
+        for (int i = 1; i < cli->argc - 1; i++)
+            *(cli->argv[i + 1] - 1) = '\0';
+
+    for (int i = 0; i < ret; i++)
+        switch(res[i]) {
+            case 0:
+                printf("user %s followed\n", cli->argv[i + 1]);
+                break;
+
+            case 1:
+                printf("user %s does not exists\n", cli->argv[i + 1]);
+                break;
+
+            case 2:
+                printf("user %s already followed\n", cli->argv[i + 1]);
+                break;
+
+            default:
+                printf("user %s not followed\n", cli->argv[i + 1]);
+        }
+
+    free(res);
 
     return ROBIN_CMD_OK;
 }
