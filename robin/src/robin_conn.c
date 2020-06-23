@@ -463,15 +463,15 @@ ROBIN_CONN_CMD_FN(follow, conn)
                 break;
 
             case 1:
-                conn->replies[n - nleft] = "-1 user does not exist";
+                conn->replies[n - nleft] = "1 user does not exist";
                 break;
 
             case 2:
-                conn->replies[n - nleft] = "-1 user already followed";
+                conn->replies[n - nleft] = "2 user already followed";
                 break;
 
             default:
-                conn->replies[n - nleft] = "-1 unknown error";
+                conn->replies[n - nleft] = "3 unknown error";
                 err = 1;
                 break;
         }
