@@ -102,6 +102,15 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
         *len = 0;  /* buffer is not allocated */
 
     while (1) {
+        if (*len) {
+            /* Find '\n' left in buffer from preceding read */
+            end = findchar(*buf, '\n', *len);
+            dbg("findchar: end=%p *buf=%p", end, *buf);
+
+            if (end)
+                break;
+        }
+
         *buf = realloc(*buf, get_allocation_size(
                                 *len + SOCKET_ALLOCATION_CHUNK_LEN));
         if (!*buf) {
@@ -122,7 +131,7 @@ static int recvline(char **buf, size_t *len, int fd, char *vptr, size_t n)
 
         dbg("recvline: buf=%.*s", *len + nread, *buf);
 
-        /* Now let's try to find the '\n'! */
+        /* try to find the '\n' in the new received bytes */
         end = findchar(*buf + *len, '\n', nread);
         dbg("findchar: end=%p *buf=%p", end, *buf);
 
