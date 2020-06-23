@@ -368,10 +368,11 @@ int socket_open_connect(const char *host, unsigned short port, int *s_connect)
     }
     *s_connect = ret;
 
-    if (connect(*s_connect, (struct sockaddr *)addr->ai_addr,
-                sizeof(*addr->ai_addr)) < 0) {
-    err("connect: %s", strerror(errno));
-    return 1;
+    ret = connect(*s_connect, (struct sockaddr *)addr->ai_addr,
+                  sizeof(*addr->ai_addr));
+    if (ret) {
+        err("connect: %s", strerror(errno));
+        return ret;
     }
 
     info("connected to %s:%d", host, port);
