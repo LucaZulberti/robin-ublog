@@ -337,10 +337,10 @@ ROBIN_CONN_CMD_FN(register, conn)
         rc_reply(conn, "-1 could not register the new user into the system");
         return ROBIN_CMD_ERR;
     } else if (ret == 1) {
-        rc_reply(conn, "-1 invalid email/password format");
+        rc_reply(conn, "-2 invalid email/password format");
         return ROBIN_CMD_OK;
     } else if (ret == 2) {
-        rc_reply(conn, "-1 user %s is already registered", email);
+        rc_reply(conn, "-3 user %s is already registered", email);
         return ROBIN_CMD_OK;
     }
 
@@ -384,15 +384,19 @@ ROBIN_CONN_CMD_FN(login, conn)
             return ROBIN_CMD_OK;
 
         case 1:
-            rc_reply(conn, "-1 user already logged in from another client");
+            rc_reply(conn, "-3 user already logged in from another client");
             return ROBIN_CMD_OK;
 
         case 2:
-            rc_reply(conn, "-1 invalid email/password");
+            rc_reply(conn, "-4 invalid email");
+            return ROBIN_CMD_OK;
+
+        case 3:
+            rc_reply(conn, "-5 invalid password");
             return ROBIN_CMD_OK;
 
         default:
-            rc_reply(conn, "-1 unknown error");
+            rc_reply(conn, "-6 unknown error");
             return ROBIN_CMD_ERR;
     }
 }
@@ -795,7 +799,7 @@ void robin_conn_manage(int id, int fd)
         if (nread < 0) {
             err("failed to receive a line from the client");
             goto manager_quit;
-        } else if (nread == 0){
+        } else if (nread == 0) {
             warn("client disconnected");
             goto manager_quit;
         } else if (nread > ROBIN_CONN_CMD_MAX_LEN) {
