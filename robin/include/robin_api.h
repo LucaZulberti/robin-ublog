@@ -21,5 +21,6 @@ void robin_api_free(void);
 int robin_api_register(const char *email, const char *password);
 int robin_api_login(const char *email, const char *password);
 int robin_api_logout(void);
+int robin_api_follow(const char *emails, int **res);
 
 #endif /* ROBIN_API_H */

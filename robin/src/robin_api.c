@@ -263,3 +263,47 @@ int robin_api_logout(void)
 
     return 0;
 }
+
+int robin_api_follow(const char *emails, int **res)
+{
+    char **lines;
+    int nline, ret;
+    int *results;
+
+    ret = ra_send("follow %s", emails);
+    if (ret) {
+        err("follow: could not send the message to the server");
+        return -1;
+    }
+
+    ret = ra_wait_reply(&lines, &nline);
+    if (ret) {
+        err("follow: could not retrieve the reply from the server");
+        return -1;
+    }
+
+    dbg("follow: reply: %s", lines[0]);
+
+    /* check for errors */
+    if (nline < 0)
+        return nline;
+
+    results = malloc(nline * sizeof(int));
+    if (!results) {
+        err("malloc: %s", strerror(errno));
+        return -1;
+    }
+
+    for (int i = 0; i < nline; i++) {
+        char *res = strchr(lines[i + 1], ' ');
+        *(res++) = '\0';
+
+        results[i] = strtol(res, NULL, 10);
+
+        dbg("follow: user=%s res=%d", lines[i + 1], results[i]);
+    }
+
+    *res = results;
+
+    return nline;
+}
