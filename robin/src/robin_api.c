@@ -40,8 +40,6 @@ static int _ra_send(const char *fmt, ...);
 static int client_fd;
 static char *msg_buf = NULL, *reply_buf = NULL;
 
-static int logged_in = 0;
-
 
 /*
  * Local functions
@@ -71,7 +69,7 @@ static int _ra_send(const char *fmt, ...)
     }
     va_end(args);
 
-    dbg("ra_send: msg=%s", msg);
+    dbg("ra_send: msg_buf=%.*s", msg_len - 2, msg_buf);
 
     /* do not send '\0' in msg */
     if (socket_sendn(client_fd, msg_buf, msg_len - 1) < 0) {
@@ -111,15 +109,17 @@ static int ra_wait_reply(char ***lines, int *nline)
         return -1;
     }
 
+    dbg("wait_reply: reply_ret=%d", reply_ret);
+
     /* always store first line (it is not counted in nline) */
-    l[0] = malloc((nbuf + 1) * sizeof(char));
+    l[0] = malloc(nbuf * sizeof(char));
     if (!l[0]) {
         err("malloc: %s", strerror(errno));
         goto free_lines_error;
     }
 
-    memcpy(l[0], vbuf, nbuf);
-    l[0][nbuf] = '\0';
+    memcpy(l[0], vbuf, nbuf - 1);   /* do not copy '\n' */
+    l[0][nbuf - 1] = '\0';
 
     if (reply_ret > 0) {
         for (int i = 0; i < reply_ret; i++) {
@@ -130,14 +130,14 @@ static int ra_wait_reply(char ***lines, int *nline)
                 goto free_lines_error;
             }
 
-            l[i + 1] = malloc((nbuf + 1) * sizeof(char));
+            l[i + 1] = malloc(nbuf * sizeof(char));
             if (!l[i + 1]) {
                 err("malloc: %s", strerror(errno));
                 goto free_lines_error;
             }
 
-            memcpy(l[0], vbuf, nbuf);
-            l[i + 1][nbuf] = '\0';
+            memcpy(l[i + 1], vbuf, nbuf - 1);  /* do not copy '\n' */
+            l[i + 1][nbuf - 1] = '\0';
         }
     }
 
@@ -191,7 +191,7 @@ int robin_api_register(const char *email, const char *password)
     char **lines;
     int nline, ret;
 
-    ret = ra_send("register %s %s\n", email, password);
+    ret = ra_send("register %s %s", email, password);
     if (ret) {
         err("register: could not send the message to the server");
         return -1;
@@ -207,7 +207,7 @@ int robin_api_register(const char *email, const char *password)
 
     /* check for errors */
     if (nline < 0)
-        return -1;
+        return nline;
 
     return 0;
 }
@@ -217,12 +217,7 @@ int robin_api_login(const char *email, const char *password)
     char **lines;
     int nline, ret;
 
-    if (logged_in) {
-        info("you are already logged in");
-        return 0;
-    }
-
-    ret = ra_send("login %s %s\n", email, password);
+    ret = ra_send("login %s %s", email, password);
     if (ret) {
         err("login: could not send the message to the server");
         return -1;
@@ -238,9 +233,7 @@ int robin_api_login(const char *email, const char *password)
 
     /* check for errors */
     if (nline < 0)
-        return -1;
-
-    logged_in = 1;
+        return nline;
 
     return 0;
 }
@@ -250,11 +243,6 @@ int robin_api_logout(void)
     char **lines;
     int nline, ret;
 
-    if (!logged_in) {
-        info("you must log in first");
-        return 0;
-    }
-
     ret = ra_send("logout");
     if (ret) {
         err("logout: could not send the message to the server");
@@ -263,15 +251,15 @@ int robin_api_logout(void)
 
     ret = ra_wait_reply(&lines, &nline);
     if (ret) {
-        err("login: could not retrieve the reply from the server");
+        err("logout: could not retrieve the reply from the server");
         return -1;
     }
 
-    dbg("login: reply: %s", lines[0]);
+    dbg("logout: reply: %s", lines[0]);
 
     /* check for errors */
     if (nline < 0)
-        return -1;
+        return nline;
 
     return 0;
 }
