@@ -307,3 +307,55 @@ int robin_api_follow(const char *emails, int **res)
 
     return nline;
 }
+
+int robin_api_cip(const char *msg)
+{
+    char **lines, *msg_to_send, *next;
+    char const *last;
+    int nline, len, delta, ret;
+
+    last = msg;
+    msg_to_send = NULL;
+    len = 0;
+
+    do {
+        next = strchr(last, '\n');
+        if (next)
+            delta = next - last + 1;  /* '\n' -> "\\n" */
+        else
+            delta = strlen(last);
+
+        msg_to_send = realloc(msg_to_send, len + delta);
+        if (!msg_to_send) {
+            err("realloc: %s", strerror(errno));
+            return -1;
+        }
+
+        if (next) {
+            memcpy(msg_to_send + len, last, delta - 2);
+            memcpy(msg_to_send + len + delta - 2, "\\n", 2);
+        } else
+            memcpy(msg_to_send + len, last, delta);
+
+        len += delta;
+
+        last = next + 1;
+    } while (next);
+
+    ret = ra_send("cip \"%.*s\"", len, msg_to_send);
+    if (ret) {
+        err("follow: could not send the message to the server");
+        return -1;
+    }
+
+    ret = ra_wait_reply(&lines, &nline);
+    if (ret) {
+        err("follow: could not retrieve the reply from the server");
+        return -1;
+    }
+
+    if (nline < 0)
+        return nline;
+
+    return 0;
+}
