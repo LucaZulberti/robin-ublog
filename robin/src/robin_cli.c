@@ -84,6 +84,7 @@ ROBIN_CLI_CMD_FN_DECL(register);
 ROBIN_CLI_CMD_FN_DECL(login);
 ROBIN_CLI_CMD_FN_DECL(logout);
 ROBIN_CLI_CMD_FN_DECL(follow);
+ROBIN_CLI_CMD_FN_DECL(cip);
 ROBIN_CLI_CMD_FN_DECL(quit);
 
 
@@ -92,18 +93,13 @@ ROBIN_CLI_CMD_FN_DECL(quit);
  */
 
 static robin_cli_cmd_t robin_cmds[] = {
-    ROBIN_CLI_CMD_ENTRY(help, "",
-                         "print this help"),
-    ROBIN_CLI_CMD_ENTRY(register, "<email> <password>",
-                         "register to Robin with email and password"),
-    ROBIN_CLI_CMD_ENTRY(login, "<email> <password>",
-                         "login to Robin with email and password"),
-    ROBIN_CLI_CMD_ENTRY(logout, "",
-                         "logout from Robin"),
-    ROBIN_CLI_CMD_ENTRY(follow, "<email>",
-                         "follow the user identified by the email"),
-    ROBIN_CLI_CMD_ENTRY(quit, "",
-                         "terminate the connection with the server"),
+    ROBIN_CLI_CMD_ENTRY(help,     "",                   "print this help"),
+    ROBIN_CLI_CMD_ENTRY(register, "<email> <password>", "register to Robin with email and password"),
+    ROBIN_CLI_CMD_ENTRY(login,    "<email> <password>", "login to Robin with email and password"),
+    ROBIN_CLI_CMD_ENTRY(logout,   "",                   "logout from Robin"),
+    ROBIN_CLI_CMD_ENTRY(follow,   "<email>",            "follow the user identified by the email"),
+    ROBIN_CLI_CMD_ENTRY(cip,      "<msg string>",       "cip a message to Robin"),
+    ROBIN_CLI_CMD_ENTRY(quit,     "",                   "terminate the connection with the server"),
     ROBIN_CLI_CMD_ENTRY_NULL /* terminator */
 };
 
@@ -408,6 +404,36 @@ ROBIN_CLI_CMD_FN(follow, cli)
         }
 
     free(res);
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CLI_CMD_FN(cip, cli)
+{
+    int ret;
+    char *msg;
+
+    if (!cli->logged) {
+        warn("you must be logged in");
+        return ROBIN_CMD_OK;
+    }
+
+    if (cli->argc != 2) {
+        warn("invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    dbg("%s: cip=%s", cli->argv[0], cli->argv[1]);
+
+    msg = cli->argv[1];
+
+    ret = robin_api_cip(msg);
+    if (ret < 0) {
+        err("server error, could not cip the message");
+        return ROBIN_CMD_ERR;
+    }
+
+    printf("Cip sent\n");
 
     return ROBIN_CMD_OK;
 }
