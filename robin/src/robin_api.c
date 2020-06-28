@@ -361,3 +361,35 @@ int robin_api_cip(const char *msg)
 
     return 0;
 }
+
+int robin_api_followers(int *nfol, char ***followers)
+{
+    char **replies;
+    int nrep, ret;
+
+    replies = NULL;
+
+    ret = ra_send("followers");
+    if (ret) {
+        err("followers: could not send the message to the server");
+        return -1;
+    }
+
+    ret = ra_wait_reply(&replies, &nrep);
+    if (ret) {
+        err("follow: could not retrieve the reply from the server");
+        return -1;
+    }
+
+    if (nrep < 0)
+        return nrep;
+
+    /* free up first line and terminator pointer */
+    free(replies[0]);
+    free(replies[nrep + 1]);
+
+    *nfol = nrep;
+    *followers = &replies[1];
+
+    return 0;
+}
