@@ -13,6 +13,7 @@
 #include "robin.h"
 #include "robin_api.h"
 #include "robin_cli.h"
+#include "lib/utility.h"
 
 
 /*
@@ -136,54 +137,6 @@ static void rcli_free(robin_cli_t *cli)
 
     dbg("cli_free: cli=%p", cli);
     free(cli);
-}
-
-static int rcli_cmdparse(robin_cli_t *cli)
-{
-    char *start_arg, *end_arg;
-    int last = 0;
-
-    cli->argc = 0;
-
-    start_arg = cli->buf;
-    do {
-        if (*start_arg == ' ') {
-            /* discard continuos whitespaces */
-            while (*start_arg == ' ')
-                start_arg++;
-        }
-
-        if (*start_arg == '\0') {
-            /* no more arguments */
-            return 0;
-        } else if (*start_arg == '"') {
-            /* if next arg starts with double quotes, search for the closing
-            * double quotes to store the whole string as one argument
-            */
-            end_arg = strchr(++start_arg, '"');
-            if (!end_arg)
-                return 0;
-        } else
-            end_arg = strchr(start_arg, ' ');
-
-        if (end_arg)
-            *end_arg = '\0';
-        else
-            last = 1;
-
-        cli->argv = realloc(cli->argv, (cli->argc + 1) * sizeof(char *));
-        if (!cli->argv) {
-            err("realloc: %s", strerror(errno));
-            return -1;
-        }
-
-        dbg("rcli_cmdparse: arg #%d: %s", cli->argc, start_arg);
-        cli->argv[cli->argc++] = start_arg;  /* store new arg */
-
-        start_arg = end_arg + 1;
-    } while (!last);
-
-    return 0;
 }
 
 
@@ -494,8 +447,8 @@ void robin_cli_manage(int fd)
         dbg("command received: \"%s\"", cli->buf);
 
         /* parse the command in argc-argv form and store it in cli */
-        if (rcli_cmdparse(cli) < 0) {
-            err("rc_cmdparse: failed to parse command");
+        if (argv_parse(cli->buf, &cli->argc, &cli->argv) < 0) {
+            err("argv_parse: failed to parse command");
             goto manager_quit;
         }
 

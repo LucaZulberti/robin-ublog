@@ -15,6 +15,7 @@
 #include "robin_conn.h"
 #include "robin_user.h"
 #include "lib/socket.h"
+#include "lib/utility.h"
 
 
 /*
@@ -237,54 +238,6 @@ static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
         conn->len = 0; /* discard the command in buffer */
 
     return nread;
-}
-
-static int rc_cmdparse(robin_conn_t *conn, char *cmd)
-{
-    char *start_arg, *end_arg;
-    int last = 0;
-
-    conn->argc = 0;
-
-    start_arg = cmd;
-    do {
-        if (*start_arg == ' ') {
-            /* discard continuos whitespaces */
-            while (*start_arg == ' ')
-                start_arg++;
-        }
-
-        if (*start_arg == '\0') {
-            /* no more arguments */
-            return 0;
-        } else if (*start_arg == '"') {
-            /* if next arg starts with double quotes, search for the closing
-            * double quotes to store the whole string as one argument
-            */
-            end_arg = strchr(++start_arg, '"');
-            if (!end_arg)
-                return 0;
-        } else
-            end_arg = strchr(start_arg, ' ');
-
-        if (end_arg)
-            *end_arg = '\0';
-        else
-            last = 1;
-
-        conn->argv = realloc(conn->argv, (conn->argc + 1) * sizeof(char *));
-        if (!conn->argv) {
-            err("realloc: %s", strerror(errno));
-            return -1;
-        }
-
-        dbg("rc_cmdparse: arg #%d: %s", conn->argc, start_arg);
-        conn->argv[conn->argc++] = start_arg;  /* store new arg */
-
-        start_arg = end_arg + 1;
-    } while (!last);
-
-    return 0;
 }
 
 
@@ -824,8 +777,8 @@ void robin_conn_manage(int id, int fd)
         dbg("command received: %s", buf);
 
         /* parse the command in argc-argv form and store it in conn */
-        if (rc_cmdparse(conn, buf) < 0) {
-            err("rc_cmdparse: failed to parse command");
+        if (argv_parse(buf, &conn->argc, &conn->argv) < 0) {
+            err("argv_parse: failed to parse command");
             goto manager_quit;
         }
 
