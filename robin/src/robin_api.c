@@ -461,3 +461,62 @@ int robin_api_cips_since(time_t since, robin_reply_t *reply)
 
     return 0;
 }
+
+int robin_api_hashtags_since(time_t since, robin_reply_t *reply)
+{
+    robin_hashtag_t *hs;
+    char **replies, **ht_argv;
+    int nrep, ht_argc, ret;
+
+    replies = NULL;
+
+    ret = ra_send("hashtags_since %l", since);
+    if (ret) {
+        err("cips_since: could not send the message to the server");
+        return -1;
+    }
+
+    ret = ra_wait_reply(&replies, &nrep);
+    if (ret) {
+        err("cips_since: could not retrieve the reply from the server");
+        return -1;
+    }
+
+    if (nrep < 0)
+        return nrep;
+
+    /* free up first line and terminator pointer */
+    free(replies[0]);
+    free(replies[nrep + 1]);
+
+    hs = malloc(nrep * sizeof(robin_hashtag_t));
+    if (!hs) {
+        err("malloc: %s", strerror(errno));
+        ra_free_reply(replies);
+        return -1;
+    }
+
+    for (int i = 0; i < nrep; i++) {
+        ht_argv = NULL;
+
+        if (argv_parse(replies[i + 1], &ht_argc, &ht_argv) < 0) {
+            err("argv_parse: failed to parse the reply");
+            ra_free_reply(replies);
+            free(hs);
+            return -1;
+        }
+
+        hs[i].tag = ht_argv[0];
+        hs[i].count = strtol(ht_argv[1], NULL, 10);
+        hs[i].free_ptr = ht_argv[0];
+
+        /* free up the argv array (not the content) */
+        free(ht_argv);
+    }
+
+    reply->n = nrep;
+    reply->data = hs;
+    reply->free_ptr = replies;
+
+    return 0;
+}
