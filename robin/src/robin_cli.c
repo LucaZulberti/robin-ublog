@@ -456,9 +456,9 @@ ROBIN_CLI_CMD_FN(home, cli)
     followers = (char **) foll_reply.data;
 
     if (foll_reply.n == 1)
-        printf("Hai 1 seguace: %s\n", followers[0]);
+        printf("You have 1 follower: %s\n", followers[0]);
     else {
-        printf("Hai %d seguaci:\n", foll_reply.n);
+        printf("You have %d followers:\n", foll_reply.n);
         for (int i = 0; i < foll_reply.n; i++)
             printf("\t%s\n", followers[i]);
     }
@@ -469,7 +469,7 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     printf("- - - - - - - - - - - - -\n");
 
-    printf("Messaggi:\n");
+    printf("Messages:\n");
 
     cips = (robin_cip_t *) cips_reply.data;
     for (int i = cips_reply.n - 1; i >= 0; i--) {
@@ -496,7 +496,7 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     printf("- - - - - - - - - - - - -\n");
 
-    printf("Argomenti caldi:\n");
+    printf("Hot topics:\n");
 
     hashtags = (robin_hashtag_t *) hash_reply.data;
     for (int i = 0; i < hash_reply.n; i++)
@@ -520,6 +520,8 @@ ROBIN_CLI_CMD_FN(quit, cli)
         return ROBIN_CMD_OK;
     }
 
+    printf("Exited Robin Client application\n");
+
     return ROBIN_CMD_QUIT;
 }
 
@@ -537,7 +539,7 @@ void robin_cli_manage(int fd)
     /* setup the context for this CLI */
     cli = rcli_alloc();
     if (!cli)
-        goto manager_early_quit;
+        return;
 
     robin_cli = cli;
     robin_api_init(fd);
@@ -601,8 +603,6 @@ manager_quit:
     rcli_free(robin_cli);
     robin_cli = NULL;
     robin_api_free();
-manager_early_quit:
-    printf("CLI manager has been closed\n");
 }
 
 void robin_cli_terminate(void)
