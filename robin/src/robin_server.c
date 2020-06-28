@@ -74,7 +74,7 @@ static void usage(void)
 
 int main(int argc, char **argv)
 {
-	struct sigaction act;
+    struct sigaction act;
     char *h_name;
     int port;
     int server_fd, newclient_fd;
@@ -109,7 +109,7 @@ int main(int argc, char **argv)
     h_name = argv[1];
     port = atoi(argv[2]);
 
-	info("local address is %s and port is %d", h_name, port);
+    info("local address is %s and port is %d", h_name, port);
 
     /* init seed for prng (needed by lib/password) */
     srand(time(NULL));

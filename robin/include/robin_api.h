@@ -13,4 +13,41 @@
 #ifndef ROBIN_API_H
 #define ROBIN_API_H
 
+typedef struct robin_reply {
+    int n;
+    void *data;
+} robin_reply_t;
+
+typedef struct robin_cip {
+    time_t ts;
+    const char *user;
+    const char *msg;
+
+    /* Used to free content */
+    void *free_ptr;
+} robin_cip_t;
+
+typedef struct robin_hashtag {
+    const char *tag;
+    int count;
+
+    /* Used to free content */
+    void *free_ptr;
+} robin_hashtag_t;
+
+
+/* Connection handling */
+int robin_api_init(int fd);
+void robin_api_free(void);
+
+/* API interface */
+int robin_api_register(const char *email, const char *password);
+int robin_api_login(const char *email, const char *password);
+int robin_api_logout(void);
+int robin_api_follow(const char *emails, robin_reply_t *reply);
+int robin_api_cip(const char *msg);
+int robin_api_followers(robin_reply_t *reply);
+int robin_api_cips_since(time_t since, robin_reply_t *reply);
+int robin_api_hashtags_since(time_t since, robin_reply_t *reply);
+
 #endif /* ROBIN_API_H */

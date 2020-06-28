@@ -79,12 +79,24 @@ void _robin_log_print(robin_log_level_t log_lvl, robin_log_id_t id, const char *
                 id_str = "cip";
                 break;
 
+            case ROBIN_LOG_ID_API:
+                id_str = "api";
+                break;
+
+            case ROBIN_LOG_ID_CLI:
+                id_str = "cli";
+                break;
+
             case ROBIN_LOG_ID_SOCKET:
                 id_str = "socket";
                 break;
 
             case ROBIN_LOG_ID_PASSWORD:
                 id_str = "password";
+                break;
+
+            case ROBIN_LOG_ID_UTILITY:
+                id_str = "utility";
                 break;
 
             default:

@@ -15,6 +15,7 @@
 #include "robin_conn.h"
 #include "robin_user.h"
 #include "lib/socket.h"
+#include "lib/utility.h"
 
 
 /*
@@ -239,54 +240,6 @@ static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
     return nread;
 }
 
-static int rc_cmdparse(robin_conn_t *conn, char *cmd)
-{
-    char *start_arg, *end_arg;
-    int last = 0;
-
-    conn->argc = 0;
-
-    start_arg = cmd;
-    do {
-        if (*start_arg == ' ') {
-            /* discard continuos whitespaces */
-            while (*start_arg == ' ')
-                start_arg++;
-        }
-
-        if (*start_arg == '\0') {
-            /* no more arguments */
-            return 0;
-        } else if (*start_arg == '"') {
-            /* if next arg starts with double quotes, search for the closing
-            * double quotes to store the whole string as one argument
-            */
-            end_arg = strchr(++start_arg, '"');
-            if (!end_arg)
-                return 0;
-        } else
-            end_arg = strchr(start_arg, ' ');
-
-        if (end_arg)
-            *end_arg = '\0';
-        else
-            last = 1;
-
-        conn->argv = realloc(conn->argv, (conn->argc + 1) * sizeof(char *));
-        if (!conn->argv) {
-            err("realloc: %s", strerror(errno));
-            return -1;
-        }
-
-        dbg("rc_cmdparse: arg #%d: %s", conn->argc, start_arg);
-        conn->argv[conn->argc++] = start_arg;  /* store new arg */
-
-        start_arg = end_arg + 1;
-    } while (!last);
-
-    return 0;
-}
-
 
 /*
  * Robin Command function definitions
@@ -337,10 +290,10 @@ ROBIN_CONN_CMD_FN(register, conn)
         rc_reply(conn, "-1 could not register the new user into the system");
         return ROBIN_CMD_ERR;
     } else if (ret == 1) {
-        rc_reply(conn, "-1 invalid email/password format");
+        rc_reply(conn, "-2 invalid email/password format");
         return ROBIN_CMD_OK;
     } else if (ret == 2) {
-        rc_reply(conn, "-1 user %s is already registered", email);
+        rc_reply(conn, "-3 user %s is already registered", email);
         return ROBIN_CMD_OK;
     }
 
@@ -384,15 +337,19 @@ ROBIN_CONN_CMD_FN(login, conn)
             return ROBIN_CMD_OK;
 
         case 1:
-            rc_reply(conn, "-1 user already logged in from another client");
+            rc_reply(conn, "-3 user already logged in from another client");
             return ROBIN_CMD_OK;
 
         case 2:
-            rc_reply(conn, "-1 invalid email/password");
+            rc_reply(conn, "-4 invalid email");
+            return ROBIN_CMD_OK;
+
+        case 3:
+            rc_reply(conn, "-5 invalid password");
             return ROBIN_CMD_OK;
 
         default:
-            rc_reply(conn, "-1 unknown error");
+            rc_reply(conn, "-6 unknown error");
             return ROBIN_CMD_ERR;
     }
 }
@@ -459,15 +416,15 @@ ROBIN_CONN_CMD_FN(follow, conn)
                 break;
 
             case 1:
-                conn->replies[n - nleft] = "-1 user does not exist";
+                conn->replies[n - nleft] = "1 user does not exist";
                 break;
 
             case 2:
-                conn->replies[n - nleft] = "-1 user already followed";
+                conn->replies[n - nleft] = "2 user already followed";
                 break;
 
             default:
-                conn->replies[n - nleft] = "-1 unknown error";
+                conn->replies[n - nleft] = "3 unknown error";
                 err = 1;
                 break;
         }
@@ -795,7 +752,7 @@ void robin_conn_manage(int id, int fd)
         if (nread < 0) {
             err("failed to receive a line from the client");
             goto manager_quit;
-        } else if (nread == 0){
+        } else if (nread == 0) {
             warn("client disconnected");
             goto manager_quit;
         } else if (nread > ROBIN_CONN_CMD_MAX_LEN) {
@@ -820,8 +777,8 @@ void robin_conn_manage(int id, int fd)
         dbg("command received: %s", buf);
 
         /* parse the command in argc-argv form and store it in conn */
-        if (rc_cmdparse(conn, buf) < 0) {
-            err("rc_cmdparse: failed to parse command");
+        if (argv_parse(buf, &conn->argc, &conn->argv) < 0) {
+            err("argv_parse: failed to parse command");
             goto manager_quit;
         }
 
