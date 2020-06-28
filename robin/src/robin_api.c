@@ -9,10 +9,12 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "robin.h"
 #include "robin_api.h"
 #include "lib/socket.h"
+#include "lib/utility.h"
 
 /*
  * Log shortcuts
@@ -400,3 +402,62 @@ int robin_api_followers(robin_reply_t *reply)
     return 0;
 }
 
+int robin_api_cips_since(time_t since, robin_reply_t *reply)
+{
+    robin_cip_t *cs;
+    char **replies, **cip_argv;
+    int nrep, cip_argc, ret;
+
+    replies = NULL;
+
+    ret = ra_send("cips_since %l", since);
+    if (ret) {
+        err("cips_since: could not send the message to the server");
+        return -1;
+    }
+
+    ret = ra_wait_reply(&replies, &nrep);
+    if (ret) {
+        err("cips_since: could not retrieve the reply from the server");
+        return -1;
+    }
+
+    if (nrep < 0)
+        return nrep;
+
+    /* free up first line and terminator pointer */
+    free(replies[0]);
+    free(replies[nrep + 1]);
+
+    cs = malloc(nrep * sizeof(robin_cip_t));
+    if (!cs) {
+        err("malloc: %s", strerror(errno));
+        ra_free_reply(replies);
+        return -1;
+    }
+
+    for (int i = 0; i < nrep; i++) {
+        cip_argv = NULL;
+
+        if (argv_parse(replies[i + 1], &cip_argc, &cip_argv) < 0) {
+            err("argv_parse: failed to parse the reply");
+            ra_free_reply(replies);
+            free(cs);
+            return -1;
+        }
+
+        cs[i].ts = strtol(cip_argv[0], NULL, 10);
+        cs[i].user = cip_argv[1];
+        cs[i].msg = cip_argv[2];
+        cs[i].free_ptr = cip_argv[0];
+
+        /* free up the argv array (not the content) */
+        free(cip_argv);
+    }
+
+    reply->n = nrep;
+    reply->data = cs;
+    reply->free_ptr = replies;
+
+    return 0;
+}
