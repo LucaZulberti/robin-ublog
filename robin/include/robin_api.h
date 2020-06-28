@@ -16,9 +16,6 @@
 typedef struct robin_reply {
     int n;
     void *data;
-
-    /* Used to free content */
-    void *free_ptr;
 } robin_reply_t;
 
 typedef struct robin_cip {

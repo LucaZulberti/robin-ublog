@@ -363,7 +363,7 @@ ROBIN_CLI_CMD_FN(follow, cli)
                 printf("user %s not followed\n", cli->argv[i + 1]);
         }
 
-    free(reply.free_ptr);
+    free(reply.data);
 
     return ROBIN_CMD_OK;
 }
@@ -465,7 +465,7 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < foll_reply.n; i++)
         free(followers[i]);
-    free(foll_reply.free_ptr);
+    free(foll_reply.data);
 
     printf("- - - - - - - - - - - - -\n");
 
@@ -483,7 +483,7 @@ ROBIN_CLI_CMD_FN(home, cli)
             err("strftime: %s", strerror(errno));
             for (int i = 0; i < cips_reply.n; i++)
                 free(cips[i].free_ptr);
-            free(foll_reply.free_ptr);
+            free(foll_reply.data);
             return -1;
         }
 
@@ -492,7 +492,7 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < cips_reply.n; i++)
         free(cips[i].free_ptr);
-    free(cips_reply.free_ptr);
+    free(cips_reply.data);
 
     printf("- - - - - - - - - - - - -\n");
 
@@ -504,7 +504,7 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < hash_reply.n; i++)
         free(hashtags[i].free_ptr);
-    free(hash_reply.free_ptr);
+    free(hash_reply.data);
 
     printf("-------------------------\n");
 

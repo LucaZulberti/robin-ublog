@@ -262,6 +262,8 @@ int robin_api_logout(void)
 
     dbg("logout: reply: %s", replies[0]);
 
+    ra_free_reply(replies);
+
     /* check for errors */
     if (nrep < 0)
         return nrep;
@@ -310,7 +312,6 @@ int robin_api_follow(const char *emails, robin_reply_t *reply)
 
     reply->n = nrep;
     reply->data = results;
-    reply->free_ptr = results;
 
     ra_free_reply(replies);
 
@@ -354,14 +355,19 @@ int robin_api_cip(const char *msg)
     ret = ra_send("cip \"%.*s\"", len, msg_to_send);
     if (ret) {
         err("follow: could not send the message to the server");
+        free(msg_to_send);
         return -1;
     }
 
     ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
         err("follow: could not retrieve the reply from the server");
+        free(msg_to_send);
         return -1;
     }
+
+    free(msg_to_send);
+    ra_free_reply(replies);
 
     if (nrep < 0)
         return nrep;
@@ -371,7 +377,7 @@ int robin_api_cip(const char *msg)
 
 int robin_api_followers(robin_reply_t *reply)
 {
-    char **replies;
+    char **replies, **followers;
     int nrep, ret;
 
     replies = NULL;
@@ -395,9 +401,19 @@ int robin_api_followers(robin_reply_t *reply)
     free(replies[0]);
     free(replies[nrep + 1]);
 
+    followers = malloc(nrep * sizeof(char *));
+    if (!followers) {
+        err("malloc: %s", strerror(errno));
+        ra_free_reply(replies);
+        return -1;
+    }
+    memcpy(followers, &replies[1], nrep * sizeof(char *));
+
     reply->n = nrep;
-    reply->data = &replies[1];
-    reply->free_ptr = replies;
+    reply->data = followers;
+
+    /* free up the replies array (not the content) */
+    free(replies);
 
     return 0;
 }
@@ -457,7 +473,9 @@ int robin_api_cips_since(time_t since, robin_reply_t *reply)
 
     reply->n = nrep;
     reply->data = cs;
-    reply->free_ptr = replies;
+
+    /* free up the replies array (not the content) */
+    free(replies);
 
     return 0;
 }
@@ -516,7 +534,9 @@ int robin_api_hashtags_since(time_t since, robin_reply_t *reply)
 
     reply->n = nrep;
     reply->data = hs;
-    reply->free_ptr = replies;
+
+    /* free up the replies array (not the content) */
+    free(replies);
 
     return 0;
 }
