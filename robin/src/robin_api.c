@@ -80,7 +80,17 @@ static int _ra_send(const char *fmt, ...)
     return 0;
 }
 
-static int ra_wait_reply(char ***lines, int *nline)
+void ra_free_reply(char **reply)
+{
+    int i = 0;
+
+    while(reply[i])
+        free(reply[i++]);
+
+    free(reply);
+}
+
+static int ra_wait_reply(char ***replies, int *nrep)
 {
     char vbuf[ROBIN_REPLY_LINE_MAX_LEN], **l;
     int nbuf;
@@ -99,9 +109,9 @@ static int ra_wait_reply(char ***lines, int *nline)
      */
     reply_ret = strtol(vbuf, NULL, 10);
     if (reply_ret < 0) {
-        l = calloc(1, sizeof(char *));
+        l = calloc(2, sizeof(char *));  /* last line is terminator */
     } else {
-        l = calloc(reply_ret + 1, sizeof(char *));
+        l = calloc(reply_ret + 2, sizeof(char *));  /* last line is terminator */
     }
 
     if (!l) {
@@ -111,11 +121,12 @@ static int ra_wait_reply(char ***lines, int *nline)
 
     dbg("wait_reply: reply_ret=%d", reply_ret);
 
-    /* always store first line (it is not counted in nline) */
+    /* always store first line (it is not counted in nrep) */
     l[0] = malloc(nbuf * sizeof(char));
     if (!l[0]) {
         err("malloc: %s", strerror(errno));
-        goto free_lines_error;
+        ra_free_reply(l);
+        return -1;
     }
 
     memcpy(l[0], vbuf, nbuf - 1);   /* do not copy '\n' */
@@ -127,13 +138,15 @@ static int ra_wait_reply(char ***lines, int *nline)
                                    vbuf, ROBIN_REPLY_LINE_MAX_LEN);
             if (nbuf < 0) {
                 err("wait_reply: failed to receive a line from the server");
-                goto free_lines_error;
+                ra_free_reply(l);
+                return -1;
             }
 
             l[i + 1] = malloc(nbuf * sizeof(char));
             if (!l[i + 1]) {
                 err("malloc: %s", strerror(errno));
-                goto free_lines_error;
+                ra_free_reply(l);
+                return -1;
             }
 
             memcpy(l[i + 1], vbuf, nbuf - 1);  /* do not copy '\n' */
@@ -141,24 +154,10 @@ static int ra_wait_reply(char ***lines, int *nline)
         }
     }
 
-    *lines = l;
-    *nline = reply_ret;
+    *replies = l;
+    *nrep = reply_ret;
 
     return 0;
-
-free_lines_error:
-    if (reply_ret >= 0)
-        for (int i = 0; i < reply_ret + 1; i++)
-            if (l[i])
-                free(l[i]);
-            else
-                break;
-    else
-        free(l[0]);
-
-    free(l);
-
-    return -1;
 }
 
 
@@ -188,8 +187,8 @@ void robin_api_free(void)
 
 int robin_api_register(const char *email, const char *password)
 {
-    char **lines;
-    int nline, ret;
+    char **replies;
+    int nrep, ret;
 
     ret = ra_send("register %s %s", email, password);
     if (ret) {
@@ -197,25 +196,27 @@ int robin_api_register(const char *email, const char *password)
         return -1;
     }
 
-    ret = ra_wait_reply(&lines, &nline);
+    ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
         err("register: could not retrieve the reply from the server");
         return -1;
     }
 
-    dbg("register: reply: %s", lines[0]);
+    dbg("register: reply: %s", replies[0]);
+
+    ra_free_reply(replies);
 
     /* check for errors */
-    if (nline < 0)
-        return nline;
+    if (nrep < 0)
+        return nrep;
 
     return 0;
 }
 
 int robin_api_login(const char *email, const char *password)
 {
-    char **lines;
-    int nline, ret;
+    char **replies;
+    int nrep, ret;
 
     ret = ra_send("login %s %s", email, password);
     if (ret) {
@@ -223,51 +224,52 @@ int robin_api_login(const char *email, const char *password)
         return -1;
     }
 
-    ret = ra_wait_reply(&lines, &nline);
+    ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
         err("login: could not retrieve the reply from the server");
         return -1;
     }
 
-    dbg("login: reply: %s", lines[0]);
+    dbg("login: reply: %s", replies[0]);
+
+    ra_free_reply(replies);
 
     /* check for errors */
-    if (nline < 0)
-        return nline;
+    if (nrep < 0)
+        return nrep;
 
     return 0;
 }
 
 int robin_api_logout(void)
 {
-    char **lines;
-    int nline, ret;
+    char **replies;
+    int nrep, ret;
 
     ret = ra_send("logout");
     if (ret) {
         err("logout: could not send the message to the server");
         return -1;
     }
-
-    ret = ra_wait_reply(&lines, &nline);
+    ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
         err("logout: could not retrieve the reply from the server");
         return -1;
     }
 
-    dbg("logout: reply: %s", lines[0]);
+    dbg("logout: reply: %s", replies[0]);
 
     /* check for errors */
-    if (nline < 0)
-        return nline;
+    if (nrep < 0)
+        return nrep;
 
     return 0;
 }
 
 int robin_api_follow(const char *emails, int **res)
 {
-    char **lines;
-    int nline, ret;
+    char **replies;
+    int nrep, ret;
     int *results;
 
     ret = ra_send("follow %s", emails);
@@ -276,43 +278,43 @@ int robin_api_follow(const char *emails, int **res)
         return -1;
     }
 
-    ret = ra_wait_reply(&lines, &nline);
+    ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
         err("follow: could not retrieve the reply from the server");
         return -1;
     }
 
-    dbg("follow: reply: %s", lines[0]);
+    dbg("follow: reply: %s", replies[0]);
 
     /* check for errors */
-    if (nline < 0)
-        return nline;
+    if (nrep < 0)
+        return nrep;
 
-    results = malloc(nline * sizeof(int));
+    results = malloc(nrep * sizeof(int));
     if (!results) {
         err("malloc: %s", strerror(errno));
         return -1;
     }
 
-    for (int i = 0; i < nline; i++) {
-        char *res = strchr(lines[i + 1], ' ');
+    for (int i = 0; i < nrep; i++) {
+        char *res = strchr(replies[i + 1], ' ');
         *(res++) = '\0';
 
         results[i] = strtol(res, NULL, 10);
 
-        dbg("follow: user=%s res=%d", lines[i + 1], results[i]);
+        dbg("follow: user=%s res=%d", replies[i + 1], results[i]);
     }
 
     *res = results;
 
-    return nline;
+    return nrep;
 }
 
 int robin_api_cip(const char *msg)
 {
-    char **lines, *msg_to_send, *next;
+    char **replies, *msg_to_send, *next;
     char const *last;
-    int nline, len, delta, ret;
+    int nrep, len, delta, ret;
 
     last = msg;
     msg_to_send = NULL;
@@ -348,14 +350,14 @@ int robin_api_cip(const char *msg)
         return -1;
     }
 
-    ret = ra_wait_reply(&lines, &nline);
+    ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
         err("follow: could not retrieve the reply from the server");
         return -1;
     }
 
-    if (nline < 0)
-        return nline;
+    if (nrep < 0)
+        return nrep;
 
     return 0;
 }
