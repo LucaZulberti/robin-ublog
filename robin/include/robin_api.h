@@ -13,6 +13,14 @@
 #ifndef ROBIN_API_H
 #define ROBIN_API_H
 
+typedef struct robin_reply {
+    int n;
+    void *data;
+
+    /* Used to free content */
+    void *free_ptr;
+} robin_reply_t;
+
 /* Connection handling */
 int robin_api_init(int fd);
 void robin_api_free(void);
@@ -21,8 +29,8 @@ void robin_api_free(void);
 int robin_api_register(const char *email, const char *password);
 int robin_api_login(const char *email, const char *password);
 int robin_api_logout(void);
-int robin_api_follow(const char *emails, int **res);
+int robin_api_follow(const char *emails, robin_reply_t *reply);
 int robin_api_cip(const char *msg);
-int robin_api_followers(int *nfol, char ***followers);
+int robin_api_followers(robin_reply_t *reply);
 
 #endif /* ROBIN_API_H */

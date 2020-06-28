@@ -306,6 +306,7 @@ ROBIN_CLI_CMD_FN(follow, cli)
 {
     int ret, *res;
     char *emails;
+    robin_reply_t reply;
 
     dbg("%s: n_emails=%d", cli->argv[0], cli->argc - 1);
 
@@ -327,7 +328,7 @@ ROBIN_CLI_CMD_FN(follow, cli)
             *(cli->argv[i + 1] - 1) = ' ';
 
 
-    ret = robin_api_follow(emails, &res);
+    ret = robin_api_follow(emails, &reply);
     if (ret < 0) {
         err("server error, could not follow anyone");
         return ROBIN_CMD_ERR;
@@ -337,6 +338,8 @@ ROBIN_CLI_CMD_FN(follow, cli)
     if (cli->argc > 2)
         for (int i = 1; i < cli->argc - 1; i++)
             *(cli->argv[i + 1] - 1) = '\0';
+
+    res = (int *) reply.data;
 
     for (int i = 0; i < ret; i++)
         switch(res[i]) {
@@ -356,7 +359,7 @@ ROBIN_CLI_CMD_FN(follow, cli)
                 printf("user %s not followed\n", cli->argv[i + 1]);
         }
 
-    free(res);
+    free(reply.free_ptr);
 
     return ROBIN_CMD_OK;
 }

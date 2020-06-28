@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "robin.h"
+#include "robin_api.h"
 #include "lib/socket.h"
 
 /*
@@ -266,7 +267,7 @@ int robin_api_logout(void)
     return 0;
 }
 
-int robin_api_follow(const char *emails, int **res)
+int robin_api_follow(const char *emails, robin_reply_t *reply)
 {
     char **replies;
     int nrep, ret;
@@ -305,7 +306,11 @@ int robin_api_follow(const char *emails, int **res)
         dbg("follow: user=%s res=%d", replies[i + 1], results[i]);
     }
 
-    *res = results;
+    reply->n = nrep;
+    reply->data = results;
+    reply->free_ptr = results;
+
+    ra_free_reply(replies);
 
     return nrep;
 }
@@ -362,7 +367,7 @@ int robin_api_cip(const char *msg)
     return 0;
 }
 
-int robin_api_followers(int *nfol, char ***followers)
+int robin_api_followers(robin_reply_t *reply)
 {
     char **replies;
     int nrep, ret;
@@ -388,8 +393,10 @@ int robin_api_followers(int *nfol, char ***followers)
     free(replies[0]);
     free(replies[nrep + 1]);
 
-    *nfol = nrep;
-    *followers = &replies[1];
+    reply->n = nrep;
+    reply->data = &replies[1];
+    reply->free_ptr = replies;
 
     return 0;
 }
+
