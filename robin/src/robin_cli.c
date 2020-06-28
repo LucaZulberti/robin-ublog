@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "robin.h"
 #include "robin_api.h"
@@ -86,6 +87,7 @@ ROBIN_CLI_CMD_FN_DECL(login);
 ROBIN_CLI_CMD_FN_DECL(logout);
 ROBIN_CLI_CMD_FN_DECL(follow);
 ROBIN_CLI_CMD_FN_DECL(cip);
+ROBIN_CLI_CMD_FN_DECL(home);
 ROBIN_CLI_CMD_FN_DECL(quit);
 
 
@@ -100,11 +102,13 @@ static robin_cli_cmd_t robin_cmds[] = {
     ROBIN_CLI_CMD_ENTRY(logout,   "",                   "logout from Robin"),
     ROBIN_CLI_CMD_ENTRY(follow,   "<email>",            "follow the user identified by the email"),
     ROBIN_CLI_CMD_ENTRY(cip,      "<msg string>",       "cip a message to Robin"),
+    ROBIN_CLI_CMD_ENTRY(home,     "",                   "print your Home page"),
     ROBIN_CLI_CMD_ENTRY(quit,     "",                   "terminate the connection with the server"),
     ROBIN_CLI_CMD_ENTRY_NULL /* terminator */
 };
 
 static robin_cli_t *robin_cli;
+
 
 /*
  * Local functions
@@ -390,6 +394,119 @@ ROBIN_CLI_CMD_FN(cip, cli)
     }
 
     printf("Cip sent\n");
+
+    return ROBIN_CMD_OK;
+}
+
+ROBIN_CLI_CMD_FN(home, cli)
+{
+    int ret;
+    char **followers;
+    robin_cip_t *cips;
+    robin_hashtag_t *hashtags;
+    robin_reply_t foll_reply, cips_reply, hash_reply;
+
+    dbg("%s", cli->argv[0]);
+
+    if (cli->argc != 1) {
+        warn("invalid number of arguments");
+        return ROBIN_CMD_OK;
+    }
+
+    if (!cli->logged) {
+        printf("you must login first\n");
+        return ROBIN_CMD_OK;
+    }
+
+    ret = robin_api_followers(&foll_reply);
+    if (ret < 0) switch (-ret) {
+        case 1:
+            err("server error, could not retrieve followers");
+            return ROBIN_CMD_ERR;
+
+        default:
+            err("unexpected error occurred");
+            return ROBIN_CMD_ERR;
+    }
+
+    ret = robin_api_cips_since(0, &cips_reply);
+    if (ret < 0) switch (-ret) {
+        case 1:
+            err("server error, could not retrieve cips");
+            return ROBIN_CMD_ERR;
+
+        default:
+            err("unexpected error occurred");
+            return ROBIN_CMD_ERR;
+    }
+
+    ret = robin_api_hashtags_since(time(NULL) - 24 * 60 * 60, &hash_reply);
+    if (ret < 0) switch (-ret) {
+        case 1:
+            err("server error, could not retrieve hashtags");
+            return ROBIN_CMD_ERR;
+
+        default:
+            err("unexpected error occurred");
+            return ROBIN_CMD_ERR;
+    }
+
+    printf("-------------------------\n");
+
+    followers = (char **) foll_reply.data;
+
+    if (foll_reply.n == 1)
+        printf("Hai 1 seguace: %s\n", followers[0]);
+    else {
+        printf("Hai %d seguaci:\n", foll_reply.n);
+        for (int i = 0; i < foll_reply.n; i++)
+            printf("\t%s\n", followers[i]);
+    }
+
+    for (int i = 0; i < foll_reply.n; i++)
+        free(followers[i]);
+    free(foll_reply.free_ptr);
+
+    printf("- - - - - - - - - - - - -\n");
+
+    printf("Messaggi:\n");
+
+    cips = (robin_cip_t *) cips_reply.data;
+    for (int i = cips_reply.n - 1; i >= 0; i--) {
+        char date[32];
+        struct tm lt;
+
+        localtime_r(&cips[i].ts, &lt);
+
+        ret = strftime(date, sizeof(date), "%F %T", &lt);
+        if (ret < 0) {
+            err("strftime: %s", strerror(errno));
+            for (int i = 0; i < cips_reply.n; i++)
+                free(cips[i].free_ptr);
+            free(foll_reply.free_ptr);
+            return -1;
+        }
+
+        printf("%s, %s, %s\n", date, cips[i].user, cips[i].msg);
+    }
+
+    for (int i = 0; i < cips_reply.n; i++)
+        free(cips[i].free_ptr);
+    free(cips_reply.free_ptr);
+
+    printf("- - - - - - - - - - - - -\n");
+
+    printf("Argomenti caldi:\n");
+
+    hashtags = (robin_hashtag_t *) hash_reply.data;
+    for (int i = 0; i < hash_reply.n; i++)
+        printf("%d %s (%d)\n", i + 1, hashtags[i].tag, hashtags[i].count);
+
+    for (int i = 0; i < hash_reply.n; i++)
+        free(hashtags[i].free_ptr);
+    free(hash_reply.free_ptr);
+
+    printf("-------------------------\n");
 
     return ROBIN_CMD_OK;
 }
