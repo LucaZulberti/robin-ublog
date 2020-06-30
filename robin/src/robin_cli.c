@@ -472,7 +472,8 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < foll_reply.n; i++)
         free(followers[i]);
-    free(foll_reply.data);
+    if (foll_reply.n)
+        free(foll_reply.data);
 
     printf("- - - - - - - - - - - - -\n");
 
@@ -499,7 +500,8 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < cips_reply.n; i++)
         free(cips[i].free_ptr);
-    free(cips_reply.data);
+    if (cips_reply.n)
+        free(cips_reply.data);
 
     printf("- - - - - - - - - - - - -\n");
 
@@ -511,7 +513,8 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < hash_reply.n; i++)
         free(hashtags[i].free_ptr);
-    free(hash_reply.data);
+    if (hash_reply.n)
+        free(hash_reply.data);
 
     printf("-------------------------\n");
 
