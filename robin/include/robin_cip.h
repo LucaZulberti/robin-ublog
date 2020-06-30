@@ -35,12 +35,14 @@ int robin_cip_add(const char *user, const char *msg);
 /**
  * @brief Get all cips sent after specified timestamp
  *
- * @param ts   timestamp
- * @param cips returned cips
- * @param nums returned number of cips
- * @return int 0 on success; -1 on error
+ * @param ts    timestamp
+ * @param users array of users to filter
+ * @param ulen  number of users in the filter
+ * @param cips  returned cips
+ * @param nums  returned number of cips
+ * @return int  0 on success; -1 on error
  */
-int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums);
+int robin_cip_get_since(time_t ts, char **users, int ulen, list_t **cips, unsigned int *nums);
 
 /**
  * @brief Get all hashtags sent after specified timestamp

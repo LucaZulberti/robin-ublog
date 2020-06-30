@@ -146,7 +146,7 @@ int robin_cip_add(const char *user, const char *msg)
     return 0;
 }
 
-int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums)
+int robin_cip_get_since(time_t ts, char **users, int ulen, list_t **cips, unsigned int *nums)
 {
     robin_cip_t *cip;
     list_t *cip_list = NULL, *cip_el;
@@ -158,6 +158,19 @@ int robin_cip_get_since(time_t ts, list_t **cips, unsigned int *nums)
     cip = last_cip;
     n = 0;
     while (cip && cip->ts > ts) {
+
+        int i;
+        for (i = 0; i < ulen; i++)
+            if (!strcmp(cip->user, users[i]))
+                break;
+
+        /* cip user not in filter */
+        if (i == ulen) {
+            cip = cip->prev;
+            continue;
+        }
+
+
         cip_el = malloc(sizeof(list_t));
         if (!cip_el) {
             err("malloc: %s", strerror(errno));
