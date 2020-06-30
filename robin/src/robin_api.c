@@ -137,8 +137,8 @@ static int ra_wait_reply(char ***replies, int *nrep)
             }
 
             l[i + 1] = buf;
-            }
         }
+    }
 
     *replies = l;
     *nrep = reply_ret;
@@ -176,17 +176,15 @@ int robin_api_register(const char *email, const char *password)
     char **replies;
     int nrep, ret;
 
+    dbg("register: email=%s psw=%s", email, password);
+
     ret = ra_send("register %s %s", email, password);
-    if (ret) {
-        err("register: could not send the message to the server");
+    if (ret)
         return -1;
-    }
 
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("register: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
 
     dbg("register: reply: %s", replies[0]);
 
@@ -204,17 +202,15 @@ int robin_api_login(const char *email, const char *password)
     char **replies;
     int nrep, ret;
 
+    dbg("login: email=%s psw=%s", email, password);
+
     ret = ra_send("login %s %s", email, password);
-    if (ret) {
-        err("login: could not send the message to the server");
+    if (ret)
         return -1;
-    }
 
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("login: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
 
     dbg("login: reply: %s", replies[0]);
 
@@ -232,16 +228,14 @@ int robin_api_logout(void)
     char **replies;
     int nrep, ret;
 
+    dbg("logout");
+
     ret = ra_send("logout");
-    if (ret) {
-        err("logout: could not send the message to the server");
+    if (ret)
         return -1;
-    }
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("logout: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
 
     dbg("logout: reply: %s", replies[0]);
 
@@ -260,17 +254,15 @@ int robin_api_follow(const char *emails, robin_reply_t *reply)
     int nrep, ret;
     int *results;
 
+    dbg("follow: emails=%s", emails);
+
     ret = ra_send("follow %s", emails);
-    if (ret) {
-        err("follow: could not send the message to the server");
+    if (ret)
         return -1;
-    }
 
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("follow: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
 
     dbg("follow: reply: %s", replies[0]);
 
@@ -307,6 +299,8 @@ int robin_api_cip(const char *msg)
     char const *last;
     int nrep, len, delta, ret;
 
+    dbg("cip: msg=%s", msg);
+
     last = msg;
     msg_to_send = NULL;
     len = 0;
@@ -337,14 +331,12 @@ int robin_api_cip(const char *msg)
 
     ret = ra_send("cip \"%.*s\"", len, msg_to_send);
     if (ret) {
-        err("follow: could not send the message to the server");
         free(msg_to_send);
         return -1;
     }
 
     ret = ra_wait_reply(&replies, &nrep);
     if (ret) {
-        err("follow: could not retrieve the reply from the server");
         free(msg_to_send);
         return -1;
     }
@@ -365,17 +357,15 @@ int robin_api_followers(robin_reply_t *reply)
 
     replies = NULL;
 
+    dbg("followers");
+
     ret = ra_send("followers");
-    if (ret) {
-        err("followers: could not send the message to the server");
+    if (ret)
         return -1;
-    }
 
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("follow: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
 
     if (nrep < 0)
         return nrep;
@@ -407,19 +397,19 @@ int robin_api_cips_since(time_t since, robin_reply_t *reply)
     char **replies, **cip_argv;
     int nrep, cip_argc, ret;
 
+    dbg("cips_since: since=%ld", since);
+
     replies = NULL;
 
-    ret = ra_send("cips_since %l", since);
-    if (ret) {
-        err("cips_since: could not send the message to the server");
+    ret = ra_send("cips_since %ld", since);
+    if (ret)
         return -1;
-    }
 
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("cips_since: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
+
+    dbg("nrep=%d", nrep);
 
     if (nrep < 0)
         return nrep;
@@ -469,19 +459,17 @@ int robin_api_hashtags_since(time_t since, robin_reply_t *reply)
     char **replies, **ht_argv;
     int nrep, ht_argc, ret;
 
+    dbg("hashtags_since: since=%ld", since);
+
     replies = NULL;
 
-    ret = ra_send("hashtags_since %l", since);
-    if (ret) {
-        err("cips_since: could not send the message to the server");
+    ret = ra_send("hashtags_since %ld", since);
+    if (ret)
         return -1;
-    }
 
     ret = ra_wait_reply(&replies, &nrep);
-    if (ret) {
-        err("cips_since: could not retrieve the reply from the server");
+    if (ret)
         return -1;
-    }
 
     if (nrep < 0)
         return nrep;
