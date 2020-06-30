@@ -425,6 +425,7 @@ ROBIN_CLI_CMD_FN(home, cli)
         return ROBIN_CMD_OK;
     }
 
+    /* get my followers */
     ret = robin_api_followers(&foll_reply);
     if (ret < 0) switch (-ret) {
         case 1:
@@ -436,7 +437,8 @@ ROBIN_CLI_CMD_FN(home, cli)
             return ROBIN_CMD_ERR;
     }
 
-    ret = robin_api_cips_since(0, &cips_reply);
+    /* get all cips sent in the last hour by the people i'm following */
+    ret = robin_api_cips_since(time(NULL) - 60 * 60, &cips_reply);
     if (ret < 0) switch (-ret) {
         case 1:
             err("server error, could not retrieve cips");
@@ -447,6 +449,7 @@ ROBIN_CLI_CMD_FN(home, cli)
             return ROBIN_CMD_ERR;
     }
 
+    /* get all hot topics mentioned in the last day by all the people */
     ret = robin_api_hashtags_since(time(NULL) - 24 * 60 * 60, &hash_reply);
     if (ret < 0) switch (-ret) {
         case 1:
