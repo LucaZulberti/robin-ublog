@@ -87,7 +87,7 @@ int robin_user_followers_get(int uid, char ***followers, size_t *len);
 /**
  * @brief Make the user follow the one identified by email
  *
- * @param me    user id that wants to follow <email>
+ * @param uid   the user id
  * @param email email of the user that will be followed
  * @return int  0 on success
  *             -1 on error
@@ -97,9 +97,9 @@ int robin_user_followers_get(int uid, char ***followers, size_t *len);
 int robin_user_follow(int uid, const char *email);
 
 /**
- * @brief Make the user follow the one identified by email
+ * @brief Make the user unfollow the one identified by email
  *
- * @param me    user id that wants to follow <email>
+ * @param uid   the user id
  * @param email email of the user that will be followed
  * @return int  0 on success
  *             -1 on error
