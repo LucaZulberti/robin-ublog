@@ -35,6 +35,7 @@
 #define ROBIN_CONN_MAX 64
 #define ROBIN_CONN_BIGCMD_THRESHOLD 5
 #define ROBIN_CONN_CMD_MAX_LEN 300
+#define ROBIN_CONN_CIP_MAX_LEN 280
 
 typedef enum robin_conn_cmd_ret {
     ROBIN_CMD_ERR = -1,
@@ -575,6 +576,12 @@ ROBIN_CONN_CMD_FN(cip, conn)
     }
 
     msg = conn->argv[1];
+
+    if (strlen(msg) > ROBIN_CONN_CIP_MAX_LEN) {
+        rc_reply(conn, "-1 cip messages cannot be longer than " STR(ROBIN_CONN_CIP_MAX_LEN)
+             " characters");
+        return ROBIN_CMD_OK;
+    }
 
     dbg("%s: msg_len=%d", conn->argv[0], strlen(msg));
 

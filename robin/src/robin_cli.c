@@ -31,7 +31,8 @@
  * Local types and macros
  */
 
-#define ROBIN_CLI_EMAIL_LEN 64
+#define ROBIN_CLI_CIP_MAX_LEN 280
+#define ROBIN_CLI_EMAIL_LEN   64
 
 typedef enum robin_cli_cmd_ret {
     ROBIN_CMD_ERR = -1,
@@ -386,6 +387,12 @@ ROBIN_CLI_CMD_FN(cip, cli)
     dbg("%s: cip=%s", cli->argv[0], cli->argv[1]);
 
     msg = cli->argv[1];
+
+    if (strlen(msg) > ROBIN_CLI_CIP_MAX_LEN) {
+        warn("Cip message cannot be longer than " STR(ROBIN_CLI_CIP_MAX_LEN)
+             " characters");
+        return ROBIN_CMD_OK;
+    }
 
     ret = robin_api_cip(msg);
     if (ret < 0) {
