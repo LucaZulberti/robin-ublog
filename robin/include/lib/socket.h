@@ -11,11 +11,8 @@
 
 #include <stddef.h>
 
-int socket_recvline(char **buf, size_t *len, int fd, char *vptr, size_t n);
-int socket_recvn(int s, void *vptr, size_t n);
-int socket_recv(int s, void *vptr, size_t n);
-int socket_sendn(int s, void *vptr, size_t n);
-
+int socket_recv(int fd, char **buf);
+int socket_send(int fd, const void *buf, size_t n);
 int socket_open_listen(const char *host, unsigned short port, int *s_listen);
 int socket_open_connect(const char *host, unsigned short port, int *s_connect);
 int socket_accept_connection(int s_listen, int *s_connect);

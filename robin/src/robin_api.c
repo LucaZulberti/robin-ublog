@@ -32,9 +32,6 @@
 
 #define ROBIN_REPLY_LINE_MAX_LEN 300
 
-static int _ra_send(const char *fmt, ...);
-#define ra_send(fmt, args...) _ra_send(fmt "\n", ## args)
-
 
 /*
  * Local data
@@ -48,20 +45,25 @@ static char *msg_buf = NULL, *reply_buf = NULL;
  * Local functions
  */
 
-static int _ra_send(const char *fmt, ...)
+static int ra_send(const char *fmt, ...)
 {
     va_list args;
     int msg_len;
 
     va_start(args, fmt);
-    msg_len = vsnprintf(NULL, 0, fmt, args) + 1;
+    msg_len = vsnprintf(NULL, 0, fmt, args);
+    if (msg_len < 0) {
+        err("vsnprintf: %s", strerror(errno));
+        return -1;
+    }
+    msg_len++;
     va_end(args);
 
     dbg("ra_send: msg_len=%d", msg_len);
 
     msg_buf = realloc(msg_buf, msg_len * sizeof(char));
     if (!msg_buf) {
-        err("malloc: %s", strerror(errno));
+        err("realloc: %s", strerror(errno));
         return -1;
     }
 
@@ -72,11 +74,11 @@ static int _ra_send(const char *fmt, ...)
     }
     va_end(args);
 
-    dbg("ra_send: msg_buf=%.*s", msg_len - 2, msg_buf);
+    dbg("ra_send: msg_buf=%s", msg_buf);
 
     /* do not send '\0' in msg */
-    if (socket_sendn(client_fd, msg_buf, msg_len - 1) < 0) {
-        err("socket_sendn: failed to send data to socket");
+    if (socket_send(client_fd, msg_buf, msg_len - 1) < 0) {
+        err("socket_send: failed to send data to socket");
         return -1;
     }
 
@@ -87,30 +89,29 @@ void ra_free_reply(char **reply)
 {
     int i = 0;
 
-    while(reply[i])
+    while(reply[i]) {
+        dbg("free_reply: reply[%d]=%p", i, reply[i]);
         free(reply[i++]);
+    }
 
+    dbg("free_reply: reply=%p", reply);
     free(reply);
 }
 
 static int ra_wait_reply(char ***replies, int *nrep)
 {
-    char vbuf[ROBIN_REPLY_LINE_MAX_LEN], **l;
-    int nbuf;
+    char *buf, **l;
+    int n;
     int reply_ret;
-    size_t reply_len = 0;
 
-    nbuf = socket_recvline(&reply_buf, &reply_len, client_fd,
-                          vbuf, ROBIN_REPLY_LINE_MAX_LEN);
-    if (nbuf < 0) {
-        err("wait_reply: failed to receive a line from the server");
+    n = socket_recv(client_fd, &buf);
+    if (n < 0)
         return -1;
-    }
 
     /* first line contains the number of lines in reply (except the first),
      * or error code if < 0
      */
-    reply_ret = strtol(vbuf, NULL, 10);
+    reply_ret = strtol(buf, NULL, 10);
     if (reply_ret < 0) {
         l = calloc(2, sizeof(char *));  /* last line is terminator */
     } else {
@@ -124,38 +125,20 @@ static int ra_wait_reply(char ***replies, int *nrep)
 
     dbg("wait_reply: reply_ret=%d", reply_ret);
 
-    /* always store first line (it is not counted in nrep) */
-    l[0] = malloc(nbuf * sizeof(char));
-    if (!l[0]) {
-        err("malloc: %s", strerror(errno));
-        ra_free_reply(l);
-        return -1;
-    }
-
-    memcpy(l[0], vbuf, nbuf - 1);   /* do not copy '\n' */
-    l[0][nbuf - 1] = '\0';
+    /* always store first packet (it is not counted in nrep) */
+    l[0] = buf;
 
     if (reply_ret > 0) {
         for (int i = 0; i < reply_ret; i++) {
-            nbuf = socket_recvline(&reply_buf, &reply_len, client_fd,
-                                   vbuf, ROBIN_REPLY_LINE_MAX_LEN);
-            if (nbuf < 0) {
-                err("wait_reply: failed to receive a line from the server");
+            n = socket_recv(client_fd, &buf);
+            if (n < 0) {
                 ra_free_reply(l);
                 return -1;
             }
 
-            l[i + 1] = malloc(nbuf * sizeof(char));
-            if (!l[i + 1]) {
-                err("malloc: %s", strerror(errno));
-                ra_free_reply(l);
-                return -1;
+            l[i + 1] = buf;
             }
-
-            memcpy(l[i + 1], vbuf, nbuf - 1);  /* do not copy '\n' */
-            l[i + 1][nbuf - 1] = '\0';
         }
-    }
 
     *replies = l;
     *nrep = reply_ret;
