@@ -158,7 +158,7 @@ ROBIN_CLI_CMD_FN(help, cli)
 
 ROBIN_CLI_CMD_FN(register, cli)
 {
-    char *email = NULL, *psw = NULL;
+    char *email = NULL, *psw = NULL, *delim;
     size_t len = 0;
     int nread, ret;
 
@@ -168,16 +168,24 @@ ROBIN_CLI_CMD_FN(register, cli)
     if (nread < 0)
         return ROBIN_CMD_ERR;
 
-    email[nread - 1] = '\0';
+    delim = strchr(email, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        email[nread - 1] = '\0';
 
-    printf("Insert the password: ");
+    printf("Insert the password for %s: ", email);
 
     len = 0;
     nread = getline(&psw, &len, stdin);
     if (nread < 0)
         return ROBIN_CMD_ERR;
 
-    psw[nread - 1] = '\0';
+    delim = strchr(psw, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        psw[nread - 1] = '\0';
 
     dbg("register: email=%s psw=%s", email, psw);
 
@@ -210,7 +218,7 @@ ROBIN_CLI_CMD_FN(register, cli)
 
 ROBIN_CLI_CMD_FN(login, cli)
 {
-    char *email = NULL, *psw = NULL;
+    char *email = NULL, *psw = NULL, *delim;
     size_t len = 0;
     int nread, ret;
 
@@ -220,16 +228,24 @@ ROBIN_CLI_CMD_FN(login, cli)
     if (nread < 0)
         return ROBIN_CMD_ERR;
 
-    email[nread - 1] = '\0';
+    delim = strchr(email, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        email[nread - 1] = '\0';
 
-    printf("Insert the password: ");
+    printf("%s insert the password: ", email);
 
     len = 0;
     nread = getline(&psw, &len, stdin);
     if (nread < 0)
         return ROBIN_CMD_ERR;
 
-    psw[nread - 1] = '\0';
+    delim = strchr(psw, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        psw[nread - 1] = '\0';
 
     dbg("login: email=%s psw=%s", email, psw);
 
