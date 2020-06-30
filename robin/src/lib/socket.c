@@ -68,7 +68,7 @@ int socket_recv(int fd, char **buf)
     return dim;
 }
 
-int socket_send(int fd, const void *buf, size_t n)
+int socket_send(int fd, const void *buf, int n)
 {
     int dim;
     ssize_t sent;
@@ -170,42 +170,6 @@ int socket_accept_connection(int s_listen, int *s_connect)
     info("new client from %s:%s", host, service);
 
     return ret;
-}
-
-int socket_set_keepalive(int fd, int idle, int intvl, int cnt)
-{
-    int on = 1;
-    int ret;
-
-    /* Set TCP keepalive on */
-    ret = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &on, sizeof(on));
-    if (ret < 0) {
-        err("setsocket(SOL_SOCKET): %s", strerror(errno));
-        return -1;
-    }
-    /* TCP keepalive parameters are:
-     *   - first keepalive probe starts after TCP_KEEPIDLE seconds;
-     *   - interval between subsequential keepalive probes is TCP_KEEPINTVL
-     *     seconds
-     *   - the connection is considered dead after TCP_KEEPCNT probes.
-     */
-    ret = setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, (char *) &idle, sizeof(idle));
-    if (ret < 0) {
-        err("setsocket(SOL_TCP/TCP_KEEPIDLE): %s", strerror(errno));
-        return -1;
-    }
-    ret = setsockopt(fd, SOL_TCP, TCP_KEEPINTVL, (char *) &intvl, sizeof(intvl));
-    if (ret < 0) {
-        err("setsocket(SOL_TCP/TCP_KEEPINTVL): %s", strerror(errno));
-        return -1;
-    }
-    ret = setsockopt(fd, SOL_TCP, TCP_KEEPCNT, (char *) &cnt, sizeof(cnt));
-    if (ret < 0) {
-        err("setsocket(SOL_TCP/TCP_KEEPCNT): %s", strerror(errno));
-        return -1;
-    }
-
-    return 0;
 }
 
 int socket_open_connect(const char *host, unsigned short port, int *s_connect)
