@@ -31,7 +31,8 @@
  * Local types and macros
  */
 
-#define ROBIN_CLI_EMAIL_LEN 64
+#define ROBIN_CLI_CIP_MAX_LEN 280
+#define ROBIN_CLI_EMAIL_LEN   64
 
 typedef enum robin_cli_cmd_ret {
     ROBIN_CMD_ERR = -1,
@@ -55,7 +56,6 @@ typedef struct robin_cli {
 
 typedef struct robin_cli_cmd {
     char *name;
-    char *usage;
     char *desc;
     robin_cli_cmd_ret_t (*fn)(robin_cli_t *cli);
 } robin_cli_cmd_t;
@@ -63,15 +63,13 @@ typedef struct robin_cli_cmd {
 #define ROBIN_CLI_CMD_FN(name, cli) \
     robin_cli_cmd_ret_t rc_cmd_##name(robin_cli_t *cli)
 #define ROBIN_CLI_CMD_FN_DECL(name) static ROBIN_CLI_CMD_FN(name,)
-#define ROBIN_CLI_CMD_ENTRY(cmd_name, cmd_usage, cmd_desc) { \
-    .name = #cmd_name,                                       \
-    .usage = cmd_usage,                                      \
-    .desc = cmd_desc,                                        \
-    .fn = rc_cmd_##cmd_name                                  \
+#define ROBIN_CLI_CMD_ENTRY(cmd_name, cmd_desc) { \
+    .name = #cmd_name,                            \
+    .desc = cmd_desc,                             \
+    .fn = rc_cmd_##cmd_name                       \
 }
 #define ROBIN_CLI_CMD_ENTRY_NULL { \
     .name = NULL,                  \
-    .usage = NULL,                 \
     .desc = NULL,                  \
     .fn = NULL                     \
 }
@@ -96,14 +94,14 @@ ROBIN_CLI_CMD_FN_DECL(quit);
  */
 
 static robin_cli_cmd_t robin_cmds[] = {
-    ROBIN_CLI_CMD_ENTRY(help,     "",                   "print this help"),
-    ROBIN_CLI_CMD_ENTRY(register, "<email> <password>", "register to Robin with email and password"),
-    ROBIN_CLI_CMD_ENTRY(login,    "<email> <password>", "login to Robin with email and password"),
-    ROBIN_CLI_CMD_ENTRY(logout,   "",                   "logout from Robin"),
-    ROBIN_CLI_CMD_ENTRY(follow,   "<email>",            "follow the user identified by the email"),
-    ROBIN_CLI_CMD_ENTRY(cip,      "<msg string>",       "cip a message to Robin"),
-    ROBIN_CLI_CMD_ENTRY(home,     "",                   "print your Home page"),
-    ROBIN_CLI_CMD_ENTRY(quit,     "",                   "terminate the connection with the server"),
+    ROBIN_CLI_CMD_ENTRY(help,     "print this help"),
+    ROBIN_CLI_CMD_ENTRY(register, "register to Robin with email and password"),
+    ROBIN_CLI_CMD_ENTRY(login,    "login to Robin with email and password"),
+    ROBIN_CLI_CMD_ENTRY(logout,   "logout from Robin"),
+    ROBIN_CLI_CMD_ENTRY(follow,   "follow the user identified by the email"),
+    ROBIN_CLI_CMD_ENTRY(cip,      "cip a message to Robin"),
+    ROBIN_CLI_CMD_ENTRY(home,     "print your Home page"),
+    ROBIN_CLI_CMD_ENTRY(quit,     "terminate the connection with the server"),
     ROBIN_CLI_CMD_ENTRY_NULL /* terminator */
 };
 
@@ -152,33 +150,44 @@ ROBIN_CLI_CMD_FN(help, cli)
 {
     robin_cli_cmd_t *cmd;
 
-    if (cli->argc != 1) {
-        err("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
-
     for (cmd = robin_cmds; cmd->name != NULL; cmd++)
-        printf("%-10s %-20s\t%s\n", cmd->name, cmd->usage, cmd->desc);
+        printf("%-10s \t%s\n", cmd->name, cmd->desc);
 
     return ROBIN_CMD_OK;
 }
 
 ROBIN_CLI_CMD_FN(register, cli)
 {
-    char *email, *psw;
-    int ret;
+    char *email = NULL, *psw = NULL, *delim;
+    size_t len = 0;
+    int nread, ret;
 
-    dbg("%s", cli->argv[0]);
+    printf("Insert the username (email): ");
 
-    if (cli->argc != 3) {
-        warn("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
+    nread = getline(&email, &len, stdin);
+    if (nread < 0)
+        return ROBIN_CMD_ERR;
 
-    email = cli->argv[1];
-    psw = cli->argv[2];
+    delim = strchr(email, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        email[nread - 1] = '\0';
 
-    dbg("%s: email=%s psw=%s", cli->argv[0], email, psw);
+    printf("Insert the password for %s: ", email);
+
+    len = 0;
+    nread = getline(&psw, &len, stdin);
+    if (nread < 0)
+        return ROBIN_CMD_ERR;
+
+    delim = strchr(psw, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        psw[nread - 1] = '\0';
+
+    dbg("register: email=%s psw=%s", email, psw);
 
     ret = robin_api_register(email, psw);
     if (ret < 0) switch (-ret) {
@@ -199,6 +208,9 @@ ROBIN_CLI_CMD_FN(register, cli)
             return ROBIN_CMD_ERR;
     }
 
+    free(email);
+    free(psw);
+
     printf("user registered successfully\n");
 
     return ROBIN_CMD_OK;
@@ -206,20 +218,36 @@ ROBIN_CLI_CMD_FN(register, cli)
 
 ROBIN_CLI_CMD_FN(login, cli)
 {
-    char *email, *psw;
-    int ret;
+    char *email = NULL, *psw = NULL, *delim;
+    size_t len = 0;
+    int nread, ret;
 
-    dbg("%s", cli->argv[0]);
+    printf("Insert the username (email): ");
 
-    if (cli->argc != 3) {
-        warn("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
+    nread = getline(&email, &len, stdin);
+    if (nread < 0)
+        return ROBIN_CMD_ERR;
 
-    email = cli->argv[1];
-    psw = cli->argv[2];
+    delim = strchr(email, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        email[nread - 1] = '\0';
 
-    dbg("%s: email=%s psw=%s", cli->argv[0], email, psw);
+    printf("%s insert the password: ", email);
+
+    len = 0;
+    nread = getline(&psw, &len, stdin);
+    if (nread < 0)
+        return ROBIN_CMD_ERR;
+
+    delim = strchr(psw, ' ');
+    if (delim)
+        *delim = '\0';
+    else
+        psw[nread - 1] = '\0';
+
+    dbg("login: email=%s psw=%s", email, psw);
 
     if (cli->logged) {
         printf("you are already logged in as %s\n", cli->email);
@@ -259,6 +287,9 @@ ROBIN_CLI_CMD_FN(login, cli)
     cli->logged = 1;
     strcpy(cli->email, email);
 
+    free(email);
+    free(psw);
+
     printf("login successfull\n");
 
     return ROBIN_CMD_OK;
@@ -267,13 +298,6 @@ ROBIN_CLI_CMD_FN(login, cli)
 ROBIN_CLI_CMD_FN(logout, cli)
 {
     int ret;
-
-    dbg("%s", cli->argv[0]);
-
-    if (cli->argc != 1) {
-        warn("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
 
     if (!cli->logged) {
         printf("you must login first\n");
@@ -308,29 +332,25 @@ ROBIN_CLI_CMD_FN(logout, cli)
 
 ROBIN_CLI_CMD_FN(follow, cli)
 {
-    int ret, *res;
-    char *emails;
+    int ret, nread, *res;
+    char *emails = NULL, *sep, *next;
+    size_t len = 0;
     robin_reply_t reply;
-
-    dbg("%s: n_emails=%d", cli->argv[0], cli->argc - 1);
 
     if (!cli->logged) {
         warn("you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (cli->argc < 2) {
-        warn("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
+    printf("Insert usernames to follow (separated by spaces): ");
 
-    emails = cli->argv[1];
+    nread = getline(&emails, &len, stdin);
+    if (nread < 0)
+        return ROBIN_CMD_ERR;
 
-    /* rebuild string from argv if argc > 2 */
-    if (cli->argc > 2)
-        for (int i = 1; i < cli->argc - 1; i++)
-            *(cli->argv[i + 1] - 1) = ' ';
+    emails[nread - 1] = '\0';
 
+    dbg("follow: emails=%*.s", len, emails);
 
     ret = robin_api_follow(emails, &reply);
     if (ret < 0) {
@@ -338,60 +358,74 @@ ROBIN_CLI_CMD_FN(follow, cli)
         return ROBIN_CMD_ERR;
     }
 
-    /* rebuild argv from string if argc > 2 */
-    if (cli->argc > 2)
-        for (int i = 1; i < cli->argc - 1; i++)
-            *(cli->argv[i + 1] - 1) = '\0';
-
     res = (int *) reply.data;
 
-    for (int i = 0; i < ret; i++)
+    next = emails;
+    for (int i = 0; i < ret; i++) {
+        sep = strchr(next, ' ');
+        if (sep)
+            *sep = '\0';
+
         switch(res[i]) {
             case 0:
-                printf("user %s followed\n", cli->argv[i + 1]);
+                printf("user %s followed\n", next);
                 break;
 
             case 1:
-                printf("user %s does not exists\n", cli->argv[i + 1]);
+                printf("user %s does not exists\n", next);
                 break;
 
             case 2:
-                printf("user %s already followed\n", cli->argv[i + 1]);
+                printf("user %s already followed\n", next);
                 break;
 
             default:
-                printf("user %s not followed\n", cli->argv[i + 1]);
+                printf("user %s not followed\n", next);
         }
 
+        next = sep + 1;
+    }
+
     free(reply.data);
+    free(emails);
 
     return ROBIN_CMD_OK;
 }
 
 ROBIN_CLI_CMD_FN(cip, cli)
 {
-    int ret;
-    char *msg;
+    char *msg = NULL;
+    size_t len = 0;
+    int nread, ret;
 
     if (!cli->logged) {
         warn("you must be logged in");
         return ROBIN_CMD_OK;
     }
 
-    if (cli->argc != 2) {
-        warn("invalid number of arguments");
+    printf("Insert the message you want to cip:\n");
+
+    nread = getline(&msg, &len, stdin);
+    if (nread < 0)
+        return ROBIN_CMD_ERR;
+
+    msg[nread - 1] = '\0';
+
+    dbg("cip: msg=%*.s", len, msg);
+
+    if (nread > ROBIN_CLI_CIP_MAX_LEN) {
+        warn("Cip message cannot be longer than " STR(ROBIN_CLI_CIP_MAX_LEN)
+             " characters");
         return ROBIN_CMD_OK;
     }
-
-    dbg("%s: cip=%s", cli->argv[0], cli->argv[1]);
-
-    msg = cli->argv[1];
 
     ret = robin_api_cip(msg);
     if (ret < 0) {
         err("server error, could not cip the message");
         return ROBIN_CMD_ERR;
     }
+
+    free(msg);
 
     printf("Cip sent\n");
 
@@ -406,18 +440,12 @@ ROBIN_CLI_CMD_FN(home, cli)
     robin_hashtag_t *hashtags;
     robin_reply_t foll_reply, cips_reply, hash_reply;
 
-    dbg("%s", cli->argv[0]);
-
-    if (cli->argc != 1) {
-        warn("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
-
     if (!cli->logged) {
         printf("you must login first\n");
         return ROBIN_CMD_OK;
     }
 
+    /* get my followers */
     ret = robin_api_followers(&foll_reply);
     if (ret < 0) switch (-ret) {
         case 1:
@@ -429,7 +457,8 @@ ROBIN_CLI_CMD_FN(home, cli)
             return ROBIN_CMD_ERR;
     }
 
-    ret = robin_api_cips_since(0, &cips_reply);
+    /* get all cips sent in the last hour by the people i'm following */
+    ret = robin_api_cips_since(time(NULL) - 60 * 60, &cips_reply);
     if (ret < 0) switch (-ret) {
         case 1:
             err("server error, could not retrieve cips");
@@ -440,6 +469,7 @@ ROBIN_CLI_CMD_FN(home, cli)
             return ROBIN_CMD_ERR;
     }
 
+    /* get all hot topics mentioned in the last day by all the people */
     ret = robin_api_hashtags_since(time(NULL) - 24 * 60 * 60, &hash_reply);
     if (ret < 0) switch (-ret) {
         case 1:
@@ -456,20 +486,21 @@ ROBIN_CLI_CMD_FN(home, cli)
     followers = (char **) foll_reply.data;
 
     if (foll_reply.n == 1)
-        printf("Hai 1 seguace: %s\n", followers[0]);
+        printf("You have 1 follower: %s\n", followers[0]);
     else {
-        printf("Hai %d seguaci:\n", foll_reply.n);
+        printf("You have %d followers:\n", foll_reply.n);
         for (int i = 0; i < foll_reply.n; i++)
             printf("\t%s\n", followers[i]);
     }
 
     for (int i = 0; i < foll_reply.n; i++)
         free(followers[i]);
-    free(foll_reply.data);
+    if (foll_reply.n)
+        free(foll_reply.data);
 
     printf("- - - - - - - - - - - - -\n");
 
-    printf("Messaggi:\n");
+    printf("Messages:\n");
 
     cips = (robin_cip_t *) cips_reply.data;
     for (int i = cips_reply.n - 1; i >= 0; i--) {
@@ -492,11 +523,12 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < cips_reply.n; i++)
         free(cips[i].free_ptr);
-    free(cips_reply.data);
+    if (cips_reply.n)
+        free(cips_reply.data);
 
     printf("- - - - - - - - - - - - -\n");
 
-    printf("Argomenti caldi:\n");
+    printf("Hot topics:\n");
 
     hashtags = (robin_hashtag_t *) hash_reply.data;
     for (int i = 0; i < hash_reply.n; i++)
@@ -504,7 +536,8 @@ ROBIN_CLI_CMD_FN(home, cli)
 
     for (int i = 0; i < hash_reply.n; i++)
         free(hashtags[i].free_ptr);
-    free(hash_reply.data);
+    if (hash_reply.n)
+        free(hash_reply.data);
 
     printf("-------------------------\n");
 
@@ -513,12 +546,7 @@ ROBIN_CLI_CMD_FN(home, cli)
 
 ROBIN_CLI_CMD_FN(quit, cli)
 {
-    dbg("%s", cli->argv[0]);
-
-    if (cli->argc != 1) {
-        warn("invalid number of arguments");
-        return ROBIN_CMD_OK;
-    }
+    printf("Exited Robin Client application\n");
 
     return ROBIN_CMD_QUIT;
 }
@@ -537,7 +565,7 @@ void robin_cli_manage(int fd)
     /* setup the context for this CLI */
     cli = rcli_alloc();
     if (!cli)
-        goto manager_early_quit;
+        return;
 
     robin_cli = cli;
     robin_api_init(fd);
@@ -572,6 +600,12 @@ void robin_cli_manage(int fd)
             goto manager_quit;
         }
 
+        /* only the command name must be provided */
+        if (cli->argc > 1) {
+            warn("invalid command");
+            continue;
+        }
+
         /* blank line */
         if (cli->argc < 1)
             continue;
@@ -601,8 +635,6 @@ manager_quit:
     rcli_free(robin_cli);
     robin_cli = NULL;
     robin_api_free();
-manager_early_quit:
-    printf("CLI manager has been closed\n");
 }
 
 void robin_cli_terminate(void)

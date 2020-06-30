@@ -35,6 +35,7 @@
 #define ROBIN_CONN_MAX 64
 #define ROBIN_CONN_BIGCMD_THRESHOLD 5
 #define ROBIN_CONN_CMD_MAX_LEN 300
+#define ROBIN_CONN_CIP_MAX_LEN 280
 
 typedef enum robin_conn_cmd_ret {
     ROBIN_CMD_ERR = -1,
@@ -44,10 +45,6 @@ typedef enum robin_conn_cmd_ret {
 
 typedef struct robin_conn {
     int fd; /* socket file descriptor */
-
-    /* Robin recvline */
-    char *buf;
-    size_t len;
 
     /* Robin reply */
     char *reply;
@@ -87,9 +84,6 @@ typedef struct robin_conn_cmd {
     .desc = NULL,                   \
     .fn = NULL                      \
 }
-
-static int _rc_reply(robin_conn_t *conn, const char *fmt, ...);
-#define rc_reply(conn, fmt, args...) _rc_reply(conn, fmt "\n", ## args)
 
 
 /*
@@ -168,11 +162,6 @@ static robin_conn_t *rc_alloc(int log_id, int fd)
 
 static void rc_free(robin_conn_t *conn)
 {
-    if (conn->buf) {
-        dbg("conn_free: buf=%p", conn->buf);
-        free(conn->buf);
-    }
-
     if (conn->reply) {
         dbg("conn_free: reply=%p", conn->reply);
         free(conn->reply);
@@ -192,16 +181,19 @@ static void rc_free(robin_conn_t *conn)
     free(conn);
 }
 
-static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
+static int rc_reply(robin_conn_t *conn, const char *fmt, ...)
 {
-    va_list args, test_args;
+    va_list args;
     int reply_len;
 
     va_start(args, fmt);
-    va_copy(test_args, args);
-
-    reply_len = vsnprintf(NULL, 0, fmt, test_args) + 1;
-    va_end(test_args);
+    reply_len = vsnprintf(NULL, 0, fmt, args);
+    if (reply_len < 0) {
+        err("vsnprintf: %s", strerror(errno));
+        return -1;
+    }
+    reply_len++;
+    va_end(args);
 
     dbg("reply: len=%d", reply_len);
 
@@ -211,6 +203,7 @@ static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
         return -1;
     }
 
+    va_start(args, fmt);
     if (vsnprintf(conn->reply, reply_len, fmt, args) < 0) {
         err("vsnprintf: %s", strerror(errno));
         return -1;
@@ -220,24 +213,12 @@ static int _rc_reply(robin_conn_t *conn, const char *fmt, ...)
     dbg("reply: msg=%s", conn->reply);
 
     /* do not send '\0' in reply */
-    if (socket_sendn(conn->fd, conn->reply, reply_len - 1) < 0) {
-        err("socket_sendn: failed to send data to socket");
+    if (socket_send(conn->fd, conn->reply, reply_len - 1) < 0) {
+        err("socket_send: failed to send data to socket");
         return -1;
     }
 
     return 0;
-}
-
-static int rc_recvline(robin_conn_t *conn, char *vptr, size_t n)
-{
-    int nread;
-
-    nread = socket_recvline(&(conn->buf), &(conn->len), conn->fd, vptr, n);
-
-    if (nread > n)
-        conn->len = 0; /* discard the command in buffer */
-
-    return nread;
 }
 
 
@@ -596,6 +577,12 @@ ROBIN_CONN_CMD_FN(cip, conn)
 
     msg = conn->argv[1];
 
+    if (strlen(msg) > ROBIN_CONN_CIP_MAX_LEN) {
+        rc_reply(conn, "-1 cip messages cannot be longer than " STR(ROBIN_CONN_CIP_MAX_LEN)
+             " characters");
+        return ROBIN_CMD_OK;
+    }
+
     dbg("%s: msg_len=%d", conn->argv[0], strlen(msg));
 
     user = robin_user_email_get(conn->uid);
@@ -616,6 +603,8 @@ ROBIN_CONN_CMD_FN(cip, conn)
 
 ROBIN_CONN_CMD_FN(cips_since, conn)
 {
+    char **following;
+    size_t foll_len;
     list_t *cip_list, *tmp;
     unsigned int cips_num;
     const robin_cip_exp_t *cip;
@@ -637,10 +626,17 @@ ROBIN_CONN_CMD_FN(cips_since, conn)
 
     dbg("%s: ts=%d", conn->argv[0], ts);
 
-    if (robin_cip_get_since(ts, &cip_list, &cips_num) < 0) {
+    if (robin_user_following_get(conn->uid, &following, &foll_len) < 0) {
+        rc_reply(conn, "-1 could not get the list of following users");
+        return ROBIN_CMD_ERR;
+    }
+
+    if (robin_cip_get_since(ts, following, foll_len, &cip_list, &cips_num) < 0) {
         err("%s: failed to get the cips", conn->argv[0]);
         return ROBIN_CMD_ERR;
     }
+
+    free(following);
 
     rc_reply(conn, "%d cips", cips_num);
     for (int i = 0; i < cips_num; i++) {
@@ -735,7 +731,7 @@ void robin_conn_manage(int id, int fd)
 {
     const int log_id = ROBIN_LOG_ID_RT_BASE + id;
     int nread, big_cmd_count = 0;
-    char buf[ROBIN_CONN_CMD_MAX_LEN];
+    char *buf;
     robin_conn_cmd_t *cmd;
     robin_conn_t *conn;
 
@@ -748,7 +744,7 @@ void robin_conn_manage(int id, int fd)
     robin_conns[id] = conn;
 
     while (1) {
-        nread = rc_recvline(conn, buf, ROBIN_CONN_CMD_MAX_LEN + 1);
+        nread = socket_recv(conn->fd, &buf);
         if (nread < 0) {
             err("failed to receive a line from the client");
             goto manager_quit;
@@ -756,6 +752,8 @@ void robin_conn_manage(int id, int fd)
             warn("client disconnected");
             goto manager_quit;
         } else if (nread > ROBIN_CONN_CMD_MAX_LEN) {
+            free(buf);
+
             rc_reply(conn, "-1 command string exceeds " \
                      STR(ROBIN_CONN_CMD_MAX_LEN) " characters: cmd dropped");
 
@@ -767,12 +765,6 @@ void robin_conn_manage(int id, int fd)
 
             continue;
         }
-
-        /* substitute \n or \r\n with \0 */
-        if (nread > 1 && buf[nread - 2] == '\r')
-            buf[nread - 2] = '\0';
-        else
-            buf[nread - 1] = '\0';
 
         dbg("command received: %s", buf);
 
@@ -810,6 +802,8 @@ void robin_conn_manage(int id, int fd)
                 err("failed to send invalid command reply");
                 goto manager_quit;
             }
+
+        free(buf);
     }
 
 manager_quit:

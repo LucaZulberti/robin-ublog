@@ -124,11 +124,6 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (socket_set_keepalive(server_fd, 10, 10, 6) < 0) {
-        err("failed to set keepalive socket options");
-        exit(EXIT_FAILURE);
-    }
-
 
     /*
      * Load users' email and password from file

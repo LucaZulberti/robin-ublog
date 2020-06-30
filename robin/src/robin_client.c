@@ -33,7 +33,7 @@ static void welcome(void)
     char msg[256];
     int n;
 
-    n = snprintf(msg, 256, "Robin Client %s", ROBIN_CLIENT_RELEASE_STRING);
+    n = snprintf(msg, 256, "Robin Client %s", ROBIN_RELEASE_STRING);
     puts(msg);
 
     while (n--)

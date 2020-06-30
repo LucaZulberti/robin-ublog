@@ -24,7 +24,7 @@
  * Robin Server release string
  */
 
-#define ROBIN_VERSION_CORE        "0.8.0"
+#define ROBIN_VERSION_CORE        "1.0.0"
 #define ROBIN_VERSION_CORE_STRING "v" ROBIN_VERSION_CORE
 
 #define ROBIN_PRERELEASE        "dev"
@@ -32,34 +32,6 @@
                                 "-" ROBIN_PRERELEASE
 
 #define ROBIN_RELEASE_STRING ROBIN_VERSION_CORE_STRING
-
-
-/*
- * Robin API release string
- */
-
-#define ROBIN_API_VERSION_CORE        "0.1.0"
-#define ROBIN_API_VERSION_CORE_STRING "v" ROBIN_API_VERSION_CORE
-
-#define ROBIN_API_PRERELEASE        "dev"
-#define ROBIN_API_PRERELEASE_STRING ROBIN_API_VERSION_CORE_STRING \
-                                    "-" ROBIN_API_PRERELEASE
-
-#define ROBIN_API_RELEASE_STRING ROBIN_API_VERSION_CORE_STRING
-
-
-/*
- * Robin Client release string
- */
-
-#define ROBIN_CLIENT_VERSION_CORE        "0.1.0"
-#define ROBIN_CLIENT_VERSION_CORE_STRING "v" ROBIN_CLIENT_VERSION_CORE
-
-#define ROBIN_CLIENT_PRERELEASE        "dev"
-#define ROBIN_CLIENT_PRERELEASE_STRING ROBIN_CLIENT_VERSION_CORE_STRING \
-                                       "-" ROBIN_CLIENT_PRERELEASE
-
-#define ROBIN_CLIENT_RELEASE_STRING ROBIN_CLIENT_VERSION_CORE_STRING
 
 
 /*
