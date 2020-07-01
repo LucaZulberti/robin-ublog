@@ -149,9 +149,12 @@ static void *rt_loop(void *ctx)
             case RT_FREE:
                 robin_log_info(rt_log_id, "ready", me->id);
                 pthread_cond_wait(&me->state_cond, &me->state_mutex);
+                pthread_mutex_unlock(&me->state_mutex);
                 break;
 
             case RT_BUSY:
+                pthread_mutex_unlock(&me->state_mutex);
+
                 robin_log_info(rt_log_id, "serving fd=%d", me->fd);
 
                 /* handle requests from client until disconnected */
@@ -161,11 +164,10 @@ static void *rt_loop(void *ctx)
                 me->fd = -1;
 
                 /* push this RT in the free list */
-                me->state = RT_FREE;
+                rt_state_set(me, RT_FREE);
                 rt_free_list_push(me);
                 break;
         }
-        pthread_mutex_unlock(&me->state_mutex);
     }
 
     /* do not execute clean-up, this should not be reached */
