@@ -49,5 +49,6 @@ int robin_api_cip(const char *msg);
 int robin_api_followers(robin_reply_t *reply);
 int robin_api_cips_since(time_t since, robin_reply_t *reply);
 int robin_api_hashtags_since(time_t since, robin_reply_t *reply);
+int robin_api_quit(void);
 
 #endif /* ROBIN_API_H */

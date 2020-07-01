@@ -233,6 +233,7 @@ int robin_api_logout(void)
     ret = ra_send("logout");
     if (ret)
         return -1;
+
     ret = ra_wait_reply(&replies, &nrep);
     if (ret)
         return -1;
@@ -508,6 +509,32 @@ int robin_api_hashtags_since(time_t since, robin_reply_t *reply)
 
     /* free up the replies array (not the content) */
     free(replies);
+
+    return 0;
+}
+
+int robin_api_quit(void)
+{
+    char **replies;
+    int nrep, ret;
+
+    dbg("quit");
+
+    ret = ra_send("quit");
+    if (ret)
+        return -1;
+
+    ret = ra_wait_reply(&replies, &nrep);
+    if (ret)
+        return -1;
+
+    dbg("quit: reply: %s", replies[0]);
+
+    ra_free_reply(replies);
+
+    /* check for errors */
+    if (nrep < 0)
+        return nrep;
 
     return 0;
 }
