@@ -546,6 +546,14 @@ ROBIN_CLI_CMD_FN(home, cli)
 
 ROBIN_CLI_CMD_FN(quit, cli)
 {
+    int ret;
+
+    ret = robin_api_quit();
+    if (ret < 0) {
+        err("server error, could not quit gracefully the connection");
+        return ROBIN_CMD_ERR;
+    }
+
     printf("Exited Robin Client application\n");
 
     return ROBIN_CMD_QUIT;
